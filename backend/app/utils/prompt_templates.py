@@ -1,0 +1,57 @@
+"""Structured prompt templates for the Gemini itinerary generator.
+
+The output *shape* is enforced by Gemini's structured-output mode
+(`response_schema`), so the prompt focuses on content quality: real places,
+realistic pacing, and respecting the budget.
+"""
+
+from app.models.request_schemas import TripRequestSchema
+
+ITINERARY_SYSTEM_INSTRUCTION = """\
+You are an expert travel planner. You create realistic, day-by-day travel
+itineraries.
+
+Rules:
+1. Use only real, specific, existing places (named landmarks, museums,
+   restaurants, viewpoints, trails, markets). Never invent places.
+   Write each activity title so it contains the exact place name, for example
+   "Visit Baltit Fort", so the place can be found on a map.
+2. Keep activities on the same day geographically close to each other, so
+   they can realistically be visited in one day.
+3. Use the time slots "Morning", "Afternoon" and "Evening", in that order.
+   Give each day 2 to 4 activities.
+4. Day 1 may include arrival and the last day may include departure; keep
+   those days lighter.
+5. estimated_cost is the realistic cost per person for that activity, in the
+   trip currency, as a number (use 0 for free activities). The sum of all
+   activity costs must not exceed the total budget.
+6. category is one short word or phrase such as "Historical", "Nature",
+   "Food", "Adventure", "Culture", "Shopping", "Relaxation", "Photography".
+7. Match the activities to the traveller's interests and travel style.
+"""
+
+ITINERARY_USER_PROMPT = """\
+Create a travel itinerary with these details:
+
+- Destination: {destination}
+- Dates: {start_date} to {end_date}
+- Number of days: {duration_days} (produce exactly {duration_days} days,
+  numbered 1 to {duration_days})
+- Total budget: {budget} {currency} (all costs in {currency})
+- Interests: {interests}
+- Travel style: {travel_style}
+"""
+
+
+def build_itinerary_prompt(trip: TripRequestSchema) -> str:
+    """Fill the user prompt with the trip request values."""
+    return ITINERARY_USER_PROMPT.format(
+        destination=trip.destination,
+        start_date=trip.start_date.isoformat(),
+        end_date=trip.end_date.isoformat(),
+        duration_days=trip.duration_days,
+        budget=f"{trip.budget:g}",
+        currency=trip.currency,
+        interests=", ".join(trip.interests),
+        travel_style=trip.travel_style,
+    )

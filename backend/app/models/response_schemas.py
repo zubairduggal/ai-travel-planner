@@ -40,6 +40,17 @@ class TripItineraryResponseSchema(BaseModel):
     days: list[DayPlanSchema]
 
 
+class ErrorDetailSchema(BaseModel):
+    code: str
+    message: str
+
+
+class ErrorResponseSchema(BaseModel):
+    """Envelope used for all application errors."""
+
+    error: ErrorDetailSchema
+
+
 class HealthResponseSchema(BaseModel):
     """Response for `GET /api/v1/health` (PRD M1)."""
 

@@ -5,7 +5,7 @@
 | Milestone | Status | Test Coverage | GitHub Commit Hash | Date Completed |
 | :--- | :--- | :--- | :--- | :--- |
 | **M1: Core API Setup** | Completed | Not measured (`pytest-cov` is added in M5); 18/18 tests passed | `3b142a8` | 2026-11-23 |
-| **M2: AI Itinerary Engine** | Pending | - | - | - |
+| **M2: AI Itinerary Engine** | Completed | 99% (34 passed, 1 live skipped) | _pending commit_ | 2026-11-23 |
 | **M3: Geocoding & Verification**| Pending | - | - | - |
 | **M4: Caching & Rate Limit** | Pending | - | - | - |
 | **M5: Docker & Production** | Pending | - | - | - |
@@ -42,5 +42,57 @@
   - `travel_style` is accepted as free text, because the PRD only shows `"Moderate"` and does not list allowed values.
   - Committed and pushed to https://github.com/zubairduggal/ai-travel-planner (`main`, commit `3b142a8`, message `feat: complete milestone M1`).
   - Ready for Gemini API integration (M2).
+
+---
+
+## Milestone 2 (M2) Report
+- **Date:** 2026-11-23
+- **Features Completed:**
+  - `app/utils/prompt_templates.py`: System instruction and user prompt builder enforcing real named places, realistic same-day proximity, time slots (`Morning`/`Afternoon`/`Evening`), and budget compliance.
+  - `app/services/ai_engine.py`: Async Google Gemini integration (`google-genai==3.6.1`, `client.aio.models.generate_content`) using structured JSON output (`response_mime_type="application/json"`, `response_schema=LLMItinerary`), timeout enforcement (`HttpOptions.timeout` + `asyncio.wait_for`), retry on malformed JSON, server-side `trip_id`/`activity_id` assignment, day sorting, and cost reconciliation.
+  - `app/core/exceptions.py`: Standardized JSON error envelope (`{"error": {"code": ..., "message": ...}}`) handling missing API key (`503`), invalid API key (`503`), Gemini quota/429 (`503`), timeouts (`504`), provider errors (`502`), and invalid/malformed responses (`502`).
+  - `app/api/v1/endpoints/itinerary.py`: `POST /api/v1/itinerary/generate` wired with FastAPI dependency injection (`Depends(get_ai_engine)`).
+  - `tests/test_itinerary_api.py`: 17 tests covering happy path, day sorting, retry-on-malformed-JSON, every error mapping, request validation (`422`), and an opt-in `@pytest.mark.live` test.
+- **Installed versions added to `requirements.txt`:** `google-genai==3.6.1`, `pytest-cov==7.1.0`
+- **Sample API Response (`POST /api/v1/itinerary/generate`):**
+  ```json
+  {
+    "trip_id": "itinerary_9f8a2b1c",
+    "destination": "Hunza Valley, Pakistan",
+    "duration_days": 2,
+    "total_estimated_cost": 80.5,
+    "currency": "USD",
+    "days": [
+      {
+        "day_number": 1,
+        "title": "Arrival & Karimabad Exploration",
+        "activities": [
+          {
+            "activity_id": "act_01",
+            "time_slot": "Morning",
+            "title": "Visit Baltit Fort",
+            "description": "Explore the 700-year-old historic fort overlooking the valley.",
+            "category": "Historical",
+            "estimated_cost": 15.0,
+            "latitude": null,
+            "longitude": null,
+            "verified": false
+          }
+        ]
+      }
+    ]
+  }
+  ```
+- **Pytest & Coverage Output:** (`pytest --cov=app --cov-report=term-missing -v`)
+  ```text
+  tests/test_health.py (18 passed)
+  tests/test_itinerary_api.py (16 passed, 1 skipped [live test requires RUN_LIVE_TESTS=1 + GEMINI_API_KEY])
+  TOTAL: 268 statements, 1 missed, 99% coverage
+  ======================== 34 passed, 1 skipped in 0.51s ========================
+  ```
+- **Notes / Observations:**
+  - Verified against installed `google-genai==3.6.1` API directly; default model set to `gemini-3.8-flash` (configurable via `GEMINI_MODEL` in `.env`).
+  - `latitude`/`longitude` remain `null` and `verified` stays `false` until M3 geocoding populates them.
+  - Ready for Geocoding & Location Verification Service (M3).
 
 ---
