@@ -6,7 +6,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **FM1: Infrastructure & M3 Setup** | Completed | `flutter analyze`: 0 issues; `flutter test`: 7/7 passed | `9a7fcd0` | 2026-11-23 |
 | **FM2: Form & Backend API Integration** | Completed | `flutter analyze`: 0 issues; 17 unit/widget + 1 live E2E passed | `3833239` | 2026-11-23 |
-| **FM3: Maps & Slot Customization** | Completed | `flutter analyze`: 0 issues; `flutter test`: 22/22 passed | _pending commit_ | 2026-11-23 |
+| **FM3: Maps & Slot Customization** | Completed | `flutter analyze`: 0 issues; `flutter test`: 22/22 passed | `5645f38` | 2026-11-23 |
 | **FM4: Offline Caching & Expense Tracker** | Pending | - | - | - |
 | **FM5: Firebase Auth & Store Release** | Pending | - | - | - |
 
