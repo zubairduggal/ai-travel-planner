@@ -6,7 +6,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **M1: Core API Setup** | Completed | Not measured (`pytest-cov` is added in M5); 18/18 tests passed | `3b142a8` | 2026-11-23 |
 | **M2: AI Itinerary Engine** | Completed | 99% (34 passed, 1 live skipped) | `0ea88ae` | 2026-11-23 |
-| **M3: Geocoding & Verification**| Completed | 97% (54 passed, 1 live passed) | _pending commit_ | 2026-11-23 |
+| **M3: Geocoding & Verification**| Completed | 97% (54 passed, 1 live passed) | `ac6061f` | 2026-11-23 |
 | **M4: Caching & Rate Limit** | Pending | - | - | - |
 | **M5: Docker & Production** | Pending | - | - | - |
 
