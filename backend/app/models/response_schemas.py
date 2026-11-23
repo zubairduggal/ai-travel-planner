@@ -1,6 +1,6 @@
 """Pydantic schemas for JSON API responses."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +27,10 @@ class DayPlanSchema(BaseModel):
     day_number: int = Field(..., ge=1)
     title: str
     activities: list[ActivitySchema]
+    # Populated by the Haversine feasibility check (M3).
+    total_distance_km: float | None = Field(default=None, ge=0)
+    feasible: bool = True
+    distance_warnings: list[str] = Field(default_factory=list)
 
 
 class TripItineraryResponseSchema(BaseModel):
@@ -38,6 +42,26 @@ class TripItineraryResponseSchema(BaseModel):
     total_estimated_cost: float = Field(..., ge=0)
     currency: str = Field(..., min_length=3, max_length=3)
     days: list[DayPlanSchema]
+
+
+class DailyWeatherSchema(BaseModel):
+    """Single day's weather forecast from Open-Meteo."""
+
+    date: date
+    temp_max_c: float | None = None
+    temp_min_c: float | None = None
+    precipitation_probability_max: int | None = Field(default=None, ge=0, le=100)
+    weather_code: int | None = None
+    condition: str
+
+
+class WeatherResponseSchema(BaseModel):
+    """Response for `GET /api/v1/weather`."""
+
+    latitude: float
+    longitude: float
+    timezone: str
+    daily: list[DailyWeatherSchema]
 
 
 class ErrorDetailSchema(BaseModel):

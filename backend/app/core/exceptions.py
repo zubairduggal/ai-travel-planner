@@ -70,6 +70,22 @@ class AIResponseError(AppError):
     message = "The AI service returned an invalid itinerary."
 
 
+class ExternalServiceError(AppError):
+    """An upstream external API (e.g. weather proxy) failed."""
+
+    status_code = 502
+    code = "EXTERNAL_SERVICE_ERROR"
+    message = "An upstream external service returned an error."
+
+
+class ExternalServiceTimeoutError(AppError):
+    """An upstream external API timed out."""
+
+    status_code = 504
+    code = "EXTERNAL_SERVICE_TIMEOUT"
+    message = "An upstream external service timed out."
+
+
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,

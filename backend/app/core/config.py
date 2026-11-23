@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AI Travel Planner API"
-    app_version: str = "0.2.0"
+    app_version: str = "0.3.0"
     app_env: Literal["development", "staging", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
@@ -35,6 +35,23 @@ class Settings(BaseSettings):
     gemini_temperature: float = Field(default=0.4, ge=0, le=2)
     # Extra attempts when Gemini returns malformed / invalid JSON.
     gemini_max_retries: int = Field(default=1, ge=0, le=3)
+
+    # --- Geocoding & Distance Feasibility (M3) ---
+    nominatim_base_url: str = "https://nominatim.openstreetmap.org"
+    # Nominatim usage policy forbids default HTTP library User-Agents.
+    nominatim_user_agent: str = "AITravelPlanner/0.3.0 (contact@aitravelplanner.local)"
+    # Nominatim public server allows max 1 request/second globally.
+    nominatim_min_interval_seconds: float = Field(default=1.05, ge=0)
+    geocoding_timeout_seconds: float = Field(default=10.0, gt=0)
+    # Optional fallback using Google Places API (New) Text Search.
+    google_places_api_key: str | None = None
+    # Max reasonable distance (km) between consecutive activities on the same day.
+    max_same_day_distance_km: float = Field(default=50.0, gt=0)
+    average_travel_speed_kmh: float = Field(default=40.0, gt=0)
+
+    # --- Weather Proxy (M3, Open-Meteo) ---
+    weather_base_url: str = "https://api.open-meteo.com/v1/forecast"
+    weather_timeout_seconds: float = Field(default=10.0, gt=0)
 
 
 @lru_cache
