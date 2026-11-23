@@ -5,7 +5,7 @@ The output *shape* is enforced by Gemini's structured-output mode
 realistic pacing, and respecting the budget.
 """
 
-from app.models.request_schemas import TripRequestSchema
+from app.models.request_schemas import RegenerateSlotRequestSchema, TripRequestSchema
 
 ITINERARY_SYSTEM_INSTRUCTION = """\
 You are an expert travel planner. You create realistic, day-by-day travel
@@ -42,6 +42,31 @@ Create a travel itinerary with these details:
 - Travel style: {travel_style}
 """
 
+SLOT_SYSTEM_INSTRUCTION = """\
+You are an expert travel planner replacing ONE single activity slot in an
+existing itinerary.
+
+Rules:
+1. Suggest a single real, specific, existing place in the destination. Include
+   the exact place name in the activity title so it can be found on a map.
+2. Do NOT repeat any place already listed in the existing itinerary activities.
+3. Keep estimated_cost within the remaining budget (use 0 for free places).
+4. Set time_slot to the exact requested time slot.
+"""
+
+SLOT_USER_PROMPT = """\
+Suggest ONE replacement activity for this slot:
+
+- Destination: {destination}
+- Day number: {day_number}
+- Time slot: {time_slot}
+- Maximum cost: {budget_remaining} {currency}
+- Interests: {interests}
+- Travel style: {travel_style}
+- Existing activities to avoid repeating: {existing_activities}
+- Extra preference: {user_note}
+"""
+
 
 def build_itinerary_prompt(trip: TripRequestSchema) -> str:
     """Fill the user prompt with the trip request values."""
@@ -54,4 +79,24 @@ def build_itinerary_prompt(trip: TripRequestSchema) -> str:
         currency=trip.currency,
         interests=", ".join(trip.interests),
         travel_style=trip.travel_style,
+    )
+
+
+def build_slot_regeneration_prompt(slot_req: RegenerateSlotRequestSchema) -> str:
+    """Fill the single-slot replacement prompt."""
+    existing = (
+        ", ".join(slot_req.existing_activity_titles)
+        if slot_req.existing_activity_titles
+        else "None"
+    )
+    return SLOT_USER_PROMPT.format(
+        destination=slot_req.destination,
+        day_number=slot_req.day_number,
+        time_slot=slot_req.time_slot,
+        budget_remaining=f"{slot_req.budget_remaining:g}",
+        currency=slot_req.currency,
+        interests=", ".join(slot_req.interests),
+        travel_style=slot_req.travel_style,
+        existing_activities=existing,
+        user_note=slot_req.user_note or "None",
     )

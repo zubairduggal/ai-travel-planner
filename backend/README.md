@@ -2,11 +2,12 @@
 
 FastAPI backend for the AI-Powered Travel Planner Flutter app.
 
-**Current status:** Milestone 3 (Geocoding, Location Verification & Weather) complete. See [reports.md](reports.md).
+**Current status:** Milestone 4 (Caching, Rate Limiting, API Key Auth & Slot Regeneration) complete. See [reports.md](reports.md).
 
 ## Requirements
 - Python 3.11+
 - A Google Gemini API key (for live itinerary generation)
+- Optional: Redis server for production distributed caching & rate limiting
 
 ## Setup (Windows PowerShell)
 ```powershell
@@ -42,7 +43,7 @@ $env:RUN_LIVE_TESTS="1"; $env:GEMINI_API_KEY="your_key"; .\.venv\Scripts\python.
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `APP_NAME` | `AI Travel Planner API` | Title shown in API docs |
-| `APP_VERSION` | `0.3.0` | API version |
+| `APP_VERSION` | `0.4.0` | API version |
 | `APP_ENV` | `development` | `development`, `staging`, or `production` |
 | `DEBUG` | `false` | FastAPI debug mode |
 | `API_V1_PREFIX` | `/api/v1` | Prefix for v1 routes |
@@ -51,16 +52,24 @@ $env:RUN_LIVE_TESTS="1"; $env:GEMINI_API_KEY="your_key"; .\.venv\Scripts\python.
 | `GEMINI_TIMEOUT_SECONDS` | `60` | Timeout per Gemini call (seconds) |
 | `GEMINI_TEMPERATURE` | `0.4` | Sampling temperature (`0`–`2`) |
 | `GEMINI_MAX_RETRIES` | `1` | Retries when Gemini returns malformed JSON |
-| `NOMINATIM_USER_AGENT` | `AITravelPlanner/0.3.0 (...)` | Required custom User-Agent for OpenStreetMap Nominatim |
+| `NOMINATIM_USER_AGENT` | `AITravelPlanner/0.4.0 (...)` | Required custom User-Agent for OpenStreetMap Nominatim |
 | `NOMINATIM_MIN_INTERVAL_SECONDS` | `1.05` | Enforces Nominatim <= 1 req/sec policy |
 | `GOOGLE_PLACES_API_KEY` | *(unset)* | Optional Google Places API (New) fallback |
 | `MAX_SAME_DAY_DISTANCE_KM` | `50.0` | Haversine threshold for same-day feasibility warnings |
 | `WEATHER_BASE_URL` | `https://api.open-meteo.com/v1/forecast` | Open-Meteo forecast endpoint (no API key needed) |
+| `CACHE_BACKEND` | `disk` | `disk` (local SQLite DiskCache), `redis`, or `memory` |
+| `DISKCACHE_DIR` | `.cache/itineraries` | Directory for local DiskCache storage |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis URL when `CACHE_BACKEND=redis` |
+| `CACHE_TTL_SECONDS` | `86400` | Cache expiry in seconds (default 24h) |
+| `RATE_LIMIT_ITINERARY` | `5/day` | Max `/generate` calls per IP/User per day |
+| `RATE_LIMIT_REGENERATE_SLOT` | `20/day` | Max `/regenerate-slot` calls per IP/User per day |
+| `RATE_LIMIT_STORAGE_URI` | `memory://` | `memory://` for dev or `redis://...` for prod |
+| `API_KEY` | *(unset)* | Optional `X-API-Key` secret for itinerary routes |
 
 ## API Endpoints
 | Method | Path | Milestone | Status |
 | :--- | :--- | :--- | :--- |
 | GET | `/api/v1/health` | M1 | Done |
-| POST | `/api/v1/itinerary/generate` | M2 + M3 | Done |
+| POST | `/api/v1/itinerary/generate` | M2 + M3 + M4 | Done |
 | GET | `/api/v1/weather` | M3 | Done |
-| POST | `/api/v1/itinerary/regenerate-slot` | M4 | Planned |
+| POST | `/api/v1/itinerary/regenerate-slot` | M4 | Done |

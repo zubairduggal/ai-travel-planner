@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AI Travel Planner API"
-    app_version: str = "0.3.0"
+    app_version: str = "0.4.0"
     app_env: Literal["development", "staging", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # --- Geocoding & Distance Feasibility (M3) ---
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"
     # Nominatim usage policy forbids default HTTP library User-Agents.
-    nominatim_user_agent: str = "AITravelPlanner/0.3.0 (contact@aitravelplanner.local)"
+    nominatim_user_agent: str = "AITravelPlanner/0.4.0 (contact@aitravelplanner.local)"
     # Nominatim public server allows max 1 request/second globally.
     nominatim_min_interval_seconds: float = Field(default=1.05, ge=0)
     geocoding_timeout_seconds: float = Field(default=10.0, gt=0)
@@ -52,6 +52,19 @@ class Settings(BaseSettings):
     # --- Weather Proxy (M3, Open-Meteo) ---
     weather_base_url: str = "https://api.open-meteo.com/v1/forecast"
     weather_timeout_seconds: float = Field(default=10.0, gt=0)
+
+    # --- Caching (M4) ---
+    cache_backend: Literal["disk", "redis", "memory"] = "disk"
+    diskcache_dir: str = ".cache/itineraries"
+    redis_url: str = "redis://localhost:6379/0"
+    cache_ttl_seconds: int = Field(default=86400, ge=0)
+
+    # --- Rate Limiting & API Key Security (M4) ---
+    rate_limit_itinerary: str = "5/day"
+    rate_limit_regenerate_slot: str = "20/day"
+    rate_limit_storage_uri: str = "memory://"
+    # Optional API key for X-API-Key header auth (enforced when set).
+    api_key: str | None = None
 
 
 @lru_cache

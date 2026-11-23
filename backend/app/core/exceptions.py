@@ -86,6 +86,14 @@ class ExternalServiceTimeoutError(AppError):
     message = "An upstream external service timed out."
 
 
+class UnauthorizedError(AppError):
+    """Missing or invalid client API key."""
+
+    status_code = 401
+    code = "UNAUTHORIZED"
+    message = "Invalid or missing API key."
+
+
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,

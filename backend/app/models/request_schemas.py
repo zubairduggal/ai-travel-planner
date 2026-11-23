@@ -56,3 +56,51 @@ class TripRequestSchema(BaseModel):
     def duration_days(self) -> int:
         """Inclusive trip length: 2026-06-10 -> 2026-06-14 is 5 days."""
         return (self.end_date - self.start_date).days + 1
+
+
+class RegenerateSlotRequestSchema(BaseModel):
+    """Payload for `POST /api/v1/itinerary/regenerate-slot` (PRD M4)."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        json_schema_extra={
+            "example": {
+                "destination": "Hunza Valley, Pakistan",
+                "day_number": 1,
+                "time_slot": "Afternoon",
+                "budget_remaining": 40.0,
+                "currency": "USD",
+                "interests": ["Nature", "Photography", "Local Food"],
+                "travel_style": "Moderate",
+                "existing_activity_titles": ["Visit Baltit Fort"],
+                "activity_id": "act_02",
+                "user_note": "Prefer a quiet viewpoint or café",
+            }
+        },
+    )
+
+    destination: str = Field(..., min_length=1, max_length=200)
+    day_number: int = Field(..., ge=1)
+    time_slot: str = Field(..., min_length=1, max_length=50)
+    budget_remaining: float = Field(..., ge=0)
+    currency: str = Field(..., min_length=3, max_length=3)
+    interests: list[str] = Field(..., min_length=1)
+    travel_style: str = Field(..., min_length=1, max_length=50)
+    existing_activity_titles: list[str] = Field(default_factory=list)
+    activity_id: str | None = Field(default=None, max_length=50)
+    user_note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("currency")
+    @classmethod
+    def currency_must_be_alpha_code(cls, value: str) -> str:
+        if not value.isalpha():
+            raise ValueError("currency must be a 3-letter code, e.g. USD")
+        return value.upper()
+
+    @field_validator("interests")
+    @classmethod
+    def interests_must_not_be_blank(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value if item.strip()]
+        if not cleaned:
+            raise ValueError("interests must contain at least one non-empty item")
+        return cleaned

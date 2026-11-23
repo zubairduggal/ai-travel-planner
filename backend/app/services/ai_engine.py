@@ -1,11 +1,11 @@
 """Gemini API prompt builder & parser.
 
 Flow:
-1. Build the prompt from the trip request.
-2. Ask Gemini for JSON constrained to `LLMItinerary` (structured output).
+1. Build the prompt from the trip (or slot regeneration) request.
+2. Ask Gemini for JSON constrained to `LLMItinerary` or `LLMActivity`.
 3. Validate the JSON with Pydantic; retry on malformed output.
-4. Add server-side fields (trip_id, activity_id, totals) and return a
-   validated `TripItineraryResponseSchema`.
+4. Add server-side fields (trip_id, activity_id, totals) and return validated
+   response schemas.
 """
 
 import asyncio
@@ -29,7 +29,7 @@ from app.core.exceptions import (
     AIResponseError,
     AITimeoutError,
 )
-from app.models.request_schemas import TripRequestSchema
+from app.models.request_schemas import RegenerateSlotRequestSchema, TripRequestSchema
 from app.models.response_schemas import (
     ActivitySchema,
     DayPlanSchema,
@@ -37,7 +37,9 @@ from app.models.response_schemas import (
 )
 from app.utils.prompt_templates import (
     ITINERARY_SYSTEM_INSTRUCTION,
+    SLOT_SYSTEM_INSTRUCTION,
     build_itinerary_prompt,
+    build_slot_regeneration_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,7 +82,7 @@ def _is_auth_error(exc: genai_errors.APIError) -> bool:
 
 
 class AIEngine:
-    """Generates itineraries with Google Gemini (`google-genai` SDK)."""
+    """Generates itineraries and single-slot replacements with Google Gemini."""
 
     def __init__(self, settings: Settings, client: Any | None = None) -> None:
         self._settings = settings
@@ -97,22 +99,32 @@ class AIEngine:
         else:
             self._client = None
 
-    def _config(self) -> types.GenerateContentConfig:
+    def _config(
+        self,
+        *,
+        system_instruction: str = ITINERARY_SYSTEM_INSTRUCTION,
+        response_schema: type[BaseModel] = LLMItinerary,
+    ) -> types.GenerateContentConfig:
         return types.GenerateContentConfig(
-            system_instruction=ITINERARY_SYSTEM_INSTRUCTION,
+            system_instruction=system_instruction,
             temperature=self._settings.gemini_temperature,
             response_mime_type="application/json",
-            response_schema=LLMItinerary,
+            response_schema=response_schema,
         )
 
-    async def _call_gemini(self, prompt: str) -> str:
+    async def _call_gemini(
+        self,
+        prompt: str,
+        *,
+        config: types.GenerateContentConfig | None = None,
+    ) -> str:
         """One Gemini request. Returns raw response text."""
         try:
             response = await asyncio.wait_for(
                 self._client.aio.models.generate_content(
                     model=self._settings.gemini_model,
                     contents=prompt,
-                    config=self._config(),
+                    config=config or self._config(),
                 ),
                 timeout=self._settings.gemini_timeout_seconds,
             )
@@ -213,6 +225,49 @@ class AIEngine:
                 last_error = exc
                 continue
             return self._to_response(itinerary, trip)
+
+        assert last_error is not None
+        raise last_error
+
+    async def regenerate_slot(
+        self, slot_req: RegenerateSlotRequestSchema
+    ) -> ActivitySchema:
+        """Generate a single replacement activity without regenerating the trip."""
+        if self._client is None:
+            raise AINotConfiguredError()
+
+        prompt = build_slot_regeneration_prompt(slot_req)
+        config = self._config(
+            system_instruction=SLOT_SYSTEM_INSTRUCTION,
+            response_schema=LLMActivity,
+        )
+        attempts = 1 + self._settings.gemini_max_retries
+        last_error: AIResponseError | None = None
+
+        for attempt in range(1, attempts + 1):
+            raw = await self._call_gemini(prompt, config=config)
+            try:
+                llm_act = LLMActivity.model_validate_json(raw)
+            except ValidationError as exc:
+                logger.warning(
+                    "Invalid slot activity from Gemini (attempt %d/%d): %s",
+                    attempt,
+                    attempts,
+                    exc,
+                )
+                last_error = AIResponseError(
+                    "The AI service returned an invalid replacement activity."
+                )
+                continue
+
+            return ActivitySchema(
+                activity_id=slot_req.activity_id or f"act_{uuid.uuid4().hex[:6]}",
+                time_slot=slot_req.time_slot,
+                title=llm_act.title,
+                description=llm_act.description,
+                category=llm_act.category,
+                estimated_cost=round(llm_act.estimated_cost, 2),
+            )
 
         assert last_error is not None
         raise last_error

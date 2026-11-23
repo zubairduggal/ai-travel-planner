@@ -7,7 +7,7 @@
 | **M1: Core API Setup** | Completed | Not measured (`pytest-cov` is added in M5); 18/18 tests passed | `3b142a8` | 2026-11-23 |
 | **M2: AI Itinerary Engine** | Completed | 99% (34 passed, 1 live skipped) | `0ea88ae` | 2026-11-23 |
 | **M3: Geocoding & Verification**| Completed | 97% (54 passed, 1 live passed) | `ac6061f` | 2026-11-23 |
-| **M4: Caching & Rate Limit** | Pending | - | - | - |
+| **M4: Caching & Rate Limit** | Completed | 97% (64 passed, 2 live skipped) | _pending commit_ | 2026-11-23 |
 | **M5: Docker & Production** | Pending | - | - | - |
 
 ---
@@ -123,5 +123,32 @@
 - **Notes / Observations:**
   - Unverified places safely keep `latitude: null`, `longitude: null`, `verified: false` (never fake `0.0, 0.0`), and geocoding HTTP failures never crash itinerary generation.
   - Ready for Caching, Rate Limiting & Slot Regeneration (M4).
+
+---
+
+## Milestone 4 (M4) Report
+- **Date:** 2026-11-23
+- **Features Completed:**
+  - `app/services/cache_service.py`: Multi-backend async caching (`DiskCacheBackend` using a dedicated single-thread executor so SQLite never blocks FastAPI's event loop or leaks Windows file handles, `RedisCacheBackend` via `redis.asyncio` with graceful fallback on connection failure, and `MemoryCacheBackend` for isolated tests) with deterministic SHA-256 normalized cache keys (`build_itinerary_cache_key`).
+  - `app/core/security.py`: SlowAPI rate-limiting middleware enforcing `5/day` on `POST /api/v1/itinerary/generate` and `20/day` on `POST /api/v1/itinerary/regenerate-slot` per user (`X-User-Id`) or client IP (`X-Forwarded-For` / remote IP), returning standardized `429 Too Many Requests` (`RATE_LIMIT_EXCEEDED`), plus constant-time `X-API-Key` header authentication (`verify_api_key`) when `API_KEY` is configured.
+  - `POST /api/v1/itinerary/regenerate-slot`: Stateless single-activity replacement endpoint (`RegenerateSlotRequestSchema`) calling Gemini (`LLMActivity` structured output) and geocoding verification without regenerating the full trip.
+  - `X-Cache: HIT | MISS` response header added to `POST /api/v1/itinerary/generate`.
+  - `tests/test_cache_security_slot.py`: 10 tests covering cache normalization, DiskCache/Redis/Memory backends, `< 50ms` DiskCache latency benchmark, 5/day rate-limit enforcement (`429`), `X-API-Key` authentication (`401`), and `/regenerate-slot` with geocoding & error handling.
+- **Installed versions added to `requirements.txt`:** `diskcache==5.6.3`, `redis==8.2.0`, `slowapi==0.1.10`
+- **Performance & Rate-Limit Verification:**
+  - **Real SQLite DiskCache hit latencies:** `[6.80 ms, 6.19 ms, 4.37 ms]` → **5.79 ms average** (target: `< 50 ms`).
+  - **Rate limit enforcement:** Requests 1–5 from same IP returned `200 OK`; request 6 returned **`429 Too Many Requests`** (`RATE_LIMIT_EXCEEDED`); isolated separate user/IP returned `200 OK`.
+- **Pytest & Coverage Output:** (`pytest --cov=app --cov-report=term-missing -q`)
+  ```text
+  tests/test_health.py (18 passed)
+  tests/test_itinerary_api.py (16 passed, 1 live skipped)
+  tests/test_geocoding.py (20 passed, 1 live skipped)
+  tests/test_cache_security_slot.py (10 passed)
+  TOTAL: 801 statements, 23 missed, 97% coverage
+  64 passed, 2 skipped in 1.10s
+  ```
+- **Notes / Observations:**
+  - Discovered and fixed a Windows-specific `diskcache` SQLite thread-local handle lock by isolating DiskCache I/O onto a dedicated single-thread executor (`DiskCacheBackend._ensure_cache`), ensuring clean shutdown and consistent ~5 ms cache hits.
+  - Ready for Integration Testing, Docker & Production Readiness (M5).
 
 ---
