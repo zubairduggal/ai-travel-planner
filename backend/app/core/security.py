@@ -1,5 +1,6 @@
 """Rate limiting (SlowAPI) & API key authentication (M4)."""
 
+import ipaddress
 import secrets
 
 from fastapi import Depends, Header, Request
@@ -13,16 +14,22 @@ from app.core.exceptions import UnauthorizedError
 
 
 def get_client_identifier(request: Request) -> str:
-    """Identify the caller by X-User-Id, X-Forwarded-For, or client IP."""
-    user_id = request.headers.get("X-User-Id")
-    if user_id and user_id.strip():
-        return f"user:{user_id.strip()}"
+    """Identify the caller by client IP (or trusted X-Forwarded-For IP).
 
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        first_ip = forwarded.split(",")[0].strip()
-        if first_ip:
-            return first_ip
+    Client-supplied headers like X-User-Id are never trusted for rate limiting
+    because any attacker could rotate them to bypass daily limits.
+    X-Forwarded-For is only consulted when `TRUST_PROXY_HEADERS=true` and is
+    validated as a real IP address.
+    """
+    settings = get_settings()
+    if settings.trust_proxy_headers:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            candidate = forwarded.split(",")[0].strip()
+            try:
+                return str(ipaddress.ip_address(candidate))
+            except ValueError:
+                pass
 
     return get_remote_address(request)
 
@@ -33,6 +40,10 @@ def _itinerary_rate_limit() -> str:
 
 def _regenerate_slot_rate_limit() -> str:
     return get_settings().rate_limit_regenerate_slot
+
+
+def _weather_rate_limit() -> str:
+    return get_settings().rate_limit_weather
 
 
 limiter = Limiter(
@@ -60,6 +71,7 @@ async def rate_limit_exceeded_handler(
                 "message": f"Rate limit exceeded: {detail}",
             }
         },
+        headers={"Cache-Control": "no-store"},
     )
 
 

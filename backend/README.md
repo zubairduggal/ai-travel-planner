@@ -13,7 +13,7 @@ Production-ready FastAPI backend for the AI-Powered Travel Planner Flutter app.
 ```powershell
 cd backend
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 # Edit .env and set GEMINI_API_KEY=<your_key>
 ```

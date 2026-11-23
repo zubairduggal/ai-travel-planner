@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     app_env: Literal["development", "staging", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
+    # Restrict origins in production (comma-separated or JSON array via env).
+    cors_allow_origins: list[str] = Field(default_factory=lambda: ["*"])
 
     # --- Gemini (M2) ---
     gemini_api_key: str | None = None
@@ -43,6 +45,7 @@ class Settings(BaseSettings):
     # Nominatim public server allows max 1 request/second globally.
     nominatim_min_interval_seconds: float = Field(default=1.05, ge=0)
     geocoding_timeout_seconds: float = Field(default=10.0, gt=0)
+    geocoding_cache_max_entries: int = Field(default=2000, ge=10)
     # Optional fallback using Google Places API (New) Text Search.
     google_places_api_key: str | None = None
     # Max reasonable distance (km) between consecutive activities on the same day.
@@ -62,9 +65,24 @@ class Settings(BaseSettings):
     # --- Rate Limiting & API Key Security (M4) ---
     rate_limit_itinerary: str = "5/day"
     rate_limit_regenerate_slot: str = "20/day"
+    rate_limit_weather: str = "60/hour"
     rate_limit_storage_uri: str = "memory://"
-    # Optional API key for X-API-Key header auth (enforced when set).
+    # Only trust X-Forwarded-For when deployed behind a trusted reverse proxy.
+    trust_proxy_headers: bool = False
+    # Optional API key for X-API-Key header auth (strongly recommended in prod).
     api_key: str | None = None
+
+    @field_validator("nominatim_base_url", "weather_base_url")
+    @classmethod
+    def upstream_urls_must_use_https(cls, value: str) -> str:
+        allowed = (
+            value.startswith("https://")
+            or value.startswith("http://localhost")
+            or value.startswith("http://127.0.0.1")
+        )
+        if not allowed:
+            raise ValueError("Upstream API URLs must use https://")
+        return value
 
 
 @lru_cache

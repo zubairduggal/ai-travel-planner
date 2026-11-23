@@ -171,3 +171,33 @@
   - All 5 milestones (M1–M5) are complete and tagged `v1.0.0`.
 
 ---
+
+## Post-M5 Security Audit & Local Docker Verification (`v1.0.1`)
+- **Date:** 2026-11-23
+- **Vulnerabilities & Bugs Identified and Fixed (M1–M5 Audit):**
+  1. **Rate-limit bypass via spoofable headers (`app/core/security.py`):** Removed untrusted `X-User-Id` override and gated `X-Forwarded-For` behind opt-in `TRUST_PROXY_HEADERS=true` with `ipaddress.ip_address` validation.
+  2. **Unbounded trip duration & payload DoS (`app/models/request_schemas.py`):** Added strict caps (`MAX_TRIP_DURATION_DAYS = 14`, `MAX_INTERESTS_COUNT = 15`, `MAX_EXISTING_TITLES_COUNT = 50`, `MAX_BUDGET = 1_000_000`, `allow_inf_nan=False`) and control-character stripping.
+  3. **Unprotected weather proxy (`app/api/v1/endpoints/weather.py`):** Added SlowAPI rate limiting (`60/hour`), `verify_api_key`, `follow_redirects=False`, and resilient parsing returning `502` on malformed upstream JSON.
+  4. **CORS, security headers & unhandled exception handler (`app/main.py`, `app/core/exceptions.py`):** Configurable `CORS_ALLOW_ORIGINS`, restricted methods/headers, added `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on errors, and catch-all `500` handler preventing traceback leakage.
+  5. **Bounded geocoding cache (`app/services/geocoding_service.py`):** Replaced unbounded `dict` with bounded `OrderedDict` LRU (`GEOCODING_CACHE_MAX_ENTRIES = 2000`) + `follow_redirects=False`.
+  6. **Clean shutdown lifecycle (`app/main.py`):** Lifespan closes initialized cache backends on shutdown and logs a warning if `API_KEY` is unset in production.
+  7. **Prompt-injection hardening (`app/utils/prompt_templates.py`):** Wrapped untrusted user parameters in `<user_request_data>` tags with explicit system-level non-override rules.
+  8. **Production Docker image hygiene (`requirements.txt` vs `requirements-dev.txt`, `Dockerfile`):** Removed dev/test tools (`pytest`, `black`, `flake8`) from the production Docker image and removed the external `# syntax=` frontend pull.
+  9. **Safe logging & `python -O` safety (`app/services/ai_engine.py`, `app/utils/distance_calculator.py`, `app/core/config.py`):** Sanitized Gemini error logs, replaced `assert` statements in runtime paths, and enforced `https://` for upstream URLs.
+- **Verified Local Docker Build & Live Container Smoke Test:**
+  ```text
+  Image:          ai-travel-planner-backend:1.0.0 (356MB)
+  Container User: uid=1000(appuser) gid=1000(appgroup) (non-root)
+  GET /api/v1/health -> 200 OK {"status":"ok","environment":"production",...}
+  Security Headers   -> X-Content-Type-Options: nosniff, X-Frame-Options: DENY
+  GET /docs          -> 200 OK
+  Dev tools in prod  -> PYTEST_IN_PROD=False
+  ```
+- **Final Hardened Quality Gate:**
+  ```text
+  black --check app tests -> 29 files would be left unchanged (exit 0)
+  flake8 app tests        -> 0 errors (exit 0)
+  pytest --cov=app --cov-fail-under=85 -> 67 passed, 2 skipped | 95.34% coverage (exit 0)
+  ```
+
+---

@@ -3,10 +3,11 @@
 from datetime import date
 
 import httpx
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ExternalServiceError, ExternalServiceTimeoutError
+from app.core.security import _weather_rate_limit, limiter, verify_api_key
 from app.models.response_schemas import (
     DailyWeatherSchema,
     ErrorResponseSchema,
@@ -53,13 +54,21 @@ async def get_weather_http_client() -> httpx.AsyncClient | None:
 @router.get(
     "",
     response_model=WeatherResponseSchema,
+    dependencies=[Depends(verify_api_key)],
     responses={
+        401: {
+            "model": ErrorResponseSchema,
+            "description": "Missing or invalid API key",
+        },
+        429: {"model": ErrorResponseSchema, "description": "Rate limit exceeded"},
         502: {"model": ErrorResponseSchema, "description": "Weather provider error"},
         504: {"model": ErrorResponseSchema, "description": "Weather provider timeout"},
     },
     summary="Get daily weather forecast for a coordinate",
 )
+@limiter.limit(_weather_rate_limit)
 async def get_weather_forecast(
+    request: Request,
     lat: float = Query(..., ge=-90, le=90, description="Latitude (WGS84)"),
     lon: float = Query(..., ge=-180, le=180, description="Longitude (WGS84)"),
     days: int = Query(default=5, ge=1, le=16, description="Number of forecast days"),
@@ -84,10 +93,12 @@ async def get_weather_forecast(
                 settings.weather_base_url,
                 params=params,
                 timeout=settings.weather_timeout_seconds,
+                follow_redirects=False,
             )
         else:
             async with httpx.AsyncClient(
-                timeout=settings.weather_timeout_seconds
+                timeout=settings.weather_timeout_seconds,
+                follow_redirects=False,
             ) as client:
                 response = await client.get(settings.weather_base_url, params=params)
         response.raise_for_status()
@@ -97,32 +108,39 @@ async def get_weather_forecast(
     except (httpx.HTTPError, ValueError) as exc:
         raise ExternalServiceError("Failed to fetch weather forecast.") from exc
 
-    daily_raw = payload.get("daily", {})
-    dates = daily_raw.get("time", [])
-    max_temps = daily_raw.get("temperature_2m_max", [])
-    min_temps = daily_raw.get("temperature_2m_min", [])
-    precip_probs = daily_raw.get("precipitation_probability_max", [])
-    codes = daily_raw.get("weather_code", [])
+    try:
+        if not isinstance(payload, dict):
+            raise ValueError("Unexpected weather payload type")
+        daily_raw = payload.get("daily", {})
+        if not isinstance(daily_raw, dict):
+            raise ValueError("Unexpected daily forecast payload")
+        dates = daily_raw.get("time", [])
+        max_temps = daily_raw.get("temperature_2m_max", [])
+        min_temps = daily_raw.get("temperature_2m_min", [])
+        precip_probs = daily_raw.get("precipitation_probability_max", [])
+        codes = daily_raw.get("weather_code", [])
 
-    daily: list[DailyWeatherSchema] = []
-    for idx, day_str in enumerate(dates):
-        code = codes[idx] if idx < len(codes) else None
-        daily.append(
-            DailyWeatherSchema(
-                date=date.fromisoformat(day_str),
-                temp_max_c=max_temps[idx] if idx < len(max_temps) else None,
-                temp_min_c=min_temps[idx] if idx < len(min_temps) else None,
-                precipitation_probability_max=(
-                    precip_probs[idx] if idx < len(precip_probs) else None
-                ),
-                weather_code=code,
-                condition=describe_weather_code(code),
+        daily: list[DailyWeatherSchema] = []
+        for idx, day_str in enumerate(dates):
+            code = codes[idx] if idx < len(codes) else None
+            daily.append(
+                DailyWeatherSchema(
+                    date=date.fromisoformat(day_str),
+                    temp_max_c=max_temps[idx] if idx < len(max_temps) else None,
+                    temp_min_c=min_temps[idx] if idx < len(min_temps) else None,
+                    precipitation_probability_max=(
+                        precip_probs[idx] if idx < len(precip_probs) else None
+                    ),
+                    weather_code=code,
+                    condition=describe_weather_code(code),
+                )
             )
-        )
 
-    return WeatherResponseSchema(
-        latitude=float(payload.get("latitude", lat)),
-        longitude=float(payload.get("longitude", lon)),
-        timezone=str(payload.get("timezone", "UTC")),
-        daily=daily,
-    )
+        return WeatherResponseSchema(
+            latitude=float(payload.get("latitude", lat)),
+            longitude=float(payload.get("longitude", lon)),
+            timezone=str(payload.get("timezone", "UTC")),
+            daily=daily,
+        )
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise ExternalServiceError("Invalid weather data from provider.") from exc

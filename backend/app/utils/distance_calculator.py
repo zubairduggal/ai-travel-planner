@@ -84,8 +84,13 @@ def evaluate_day_feasibility(
     warnings: list[str] = []
 
     for prev_act, next_act in zip(located, located[1:]):
-        assert prev_act.latitude is not None and prev_act.longitude is not None
-        assert next_act.latitude is not None and next_act.longitude is not None
+        if (
+            prev_act.latitude is None
+            or prev_act.longitude is None
+            or next_act.latitude is None
+            or next_act.longitude is None
+        ):
+            continue
 
         dist = haversine_km(
             prev_act.latitude,

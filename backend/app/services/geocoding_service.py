@@ -13,6 +13,7 @@ for Pro SKU fields only: `places.displayName,places.location`).
 """
 
 import asyncio
+from collections import OrderedDict
 import logging
 import re
 import time
@@ -83,7 +84,8 @@ class GeocodingService:
     ) -> None:
         self._settings = settings
         self._http_client = http_client
-        self._cache: dict[str, GeoLocation | None] = {}
+        self._cache: OrderedDict[str, GeoLocation | None] = OrderedDict()
+        self._cache_max_entries = settings.geocoding_cache_max_entries
         self._throttle_lock = asyncio.Lock()
         self._last_nominatim_call: float | None = None
 
@@ -117,9 +119,11 @@ class GeocodingService:
                 headers=headers,
                 json=json_body,
                 timeout=self._settings.geocoding_timeout_seconds,
+                follow_redirects=False,
             )
         async with httpx.AsyncClient(
-            timeout=self._settings.geocoding_timeout_seconds
+            timeout=self._settings.geocoding_timeout_seconds,
+            follow_redirects=False,
         ) as client:
             return await client.request(
                 method, url, params=params, headers=headers, json=json_body
@@ -245,6 +249,7 @@ class GeocodingService:
         """Resolve a place name to coordinates, using local cache first."""
         cache_key = f"{query.strip().lower()}|{viewbox}"
         if cache_key in self._cache:
+            self._cache.move_to_end(cache_key)
             return self._cache[cache_key]
 
         match = await self._search_nominatim(query, viewbox=viewbox)
@@ -252,6 +257,8 @@ class GeocodingService:
             match = await self._search_google_places(query)
 
         self._cache[cache_key] = match
+        if len(self._cache) > self._cache_max_entries:
+            self._cache.popitem(last=False)
         return match
 
     async def verify_activity(

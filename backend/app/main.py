@@ -1,9 +1,10 @@
-"""FastAPI application setup, OpenAPI metadata, lifespan & middleware."""
+"""FastAPI application setup, OpenAPI metadata, lifespan & security middleware."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
@@ -11,6 +12,9 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.security import limiter, rate_limit_exceeded_handler
+from app.services.cache_service import _build_cache_service
+
+logger = logging.getLogger(__name__)
 
 OPENAPI_TAGS = [
     {
@@ -43,7 +47,16 @@ APP_DESCRIPTION = (
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Application startup/shutdown lifecycle."""
-    yield
+    settings = get_settings()
+    if settings.app_env == "production" and not settings.api_key:
+        logger.warning(
+            "API_KEY is not configured in production; protected endpoints are open."
+        )
+    try:
+        yield
+    finally:
+        if _build_cache_service.cache_info().currsize > 0:
+            await _build_cache_service().close()
 
 
 def create_app() -> FastAPI:
@@ -60,13 +73,22 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    @application.middleware("http")
+    async def add_security_headers(request: Request, call_next) -> Response:
+        response: Response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        return response
+
     # Mobile (Flutter) clients do not send browser CORS preflights, but this
-    # keeps Flutter Web / Swagger testing working during development.
+    # keeps Flutter Web / Swagger testing working while letting production
+    # restrict origins via CORS_ALLOW_ORIGINS.
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=settings.cors_allow_origins,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-API-Key"],
     )
 
     application.state.limiter = limiter

@@ -252,16 +252,14 @@ async def test_generate_itinerary_diskcache_hit_under_50ms(client, tmp_path):
 # --- Rate limiting (5 requests/day -> 6th returns 429) ---------------------
 
 
-async def test_rate_limit_enforces_5_per_day_and_returns_429(client):
+async def test_rate_limit_enforces_5_per_day_and_blocks_header_spoofing(client):
     _install_fake_ai([ONE_DAY_LLM_JSON])
-    user_headers = {"X-Forwarded-For": "203.0.113.10"}
 
     # First 5 requests succeed.
     for i in range(5):
         res = await client.post(
             "/api/v1/itinerary/generate",
             json={**TRIP_PAYLOAD, "budget": 200.0 + i},
-            headers=user_headers,
         )
         assert res.status_code == 200, f"Request {i + 1} should succeed"
 
@@ -269,18 +267,117 @@ async def test_rate_limit_enforces_5_per_day_and_returns_429(client):
     blocked = await client.post(
         "/api/v1/itinerary/generate",
         json={**TRIP_PAYLOAD, "budget": 999.0},
-        headers=user_headers,
     )
     assert blocked.status_code == 429
     assert blocked.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert blocked.headers["Cache-Control"] == "no-store"
 
-    # A different user / IP is not affected.
-    other_user = await client.post(
+    # Spoofing X-User-Id or X-Forwarded-For must NOT bypass the limit by default.
+    spoof_user = await client.post(
         "/api/v1/itinerary/generate",
         json=TRIP_PAYLOAD,
-        headers={"X-User-Id": "flutter_user_42"},
+        headers={"X-User-Id": "attacker_bypass_99"},
     )
-    assert other_user.status_code == 200
+    assert spoof_user.status_code == 429
+
+    spoof_ip = await client.post(
+        "/api/v1/itinerary/generate",
+        json=TRIP_PAYLOAD,
+        headers={"X-Forwarded-For": "198.51.100.77"},
+    )
+    assert spoof_ip.status_code == 429
+
+
+async def test_trusted_proxy_headers_validate_ip_address(client, monkeypatch):
+    from app.core import security
+
+    monkeypatch.setattr(
+        security,
+        "get_settings",
+        lambda: Settings(trust_proxy_headers=True),
+    )
+    _install_fake_ai([ONE_DAY_LLM_JSON])
+
+    # Exhaust IP 203.0.113.10
+    for i in range(5):
+        res = await client.post(
+            "/api/v1/itinerary/generate",
+            json={**TRIP_PAYLOAD, "budget": 200.0 + i},
+            headers={"X-Forwarded-For": "203.0.113.10, 10.0.0.1"},
+        )
+        assert res.status_code == 200
+
+    blocked = await client.post(
+        "/api/v1/itinerary/generate",
+        json=TRIP_PAYLOAD,
+        headers={"X-Forwarded-For": "203.0.113.10"},
+    )
+    assert blocked.status_code == 429
+
+    # Different valid client IP behind proxy is isolated.
+    other_ip = await client.post(
+        "/api/v1/itinerary/generate",
+        json=TRIP_PAYLOAD,
+        headers={"X-Forwarded-For": "198.51.100.42"},
+    )
+    assert other_ip.status_code == 200
+
+
+async def test_security_headers_and_dos_input_bounds(client):
+    from pydantic import ValidationError
+    from app.api.v1.endpoints.weather import get_weather_http_client
+
+    health = await client.get("/api/v1/health")
+    assert health.headers["X-Content-Type-Options"] == "nosniff"
+    assert health.headers["X-Frame-Options"] == "DENY"
+    assert health.headers["Referrer-Policy"] == "no-referrer"
+
+    # Trip > 14 days rejected (prevents LLM & Nominatim DoS).
+    too_long = await client.post(
+        "/api/v1/itinerary/generate",
+        json={**TRIP_PAYLOAD, "start_date": "2026-06-01", "end_date": "2026-07-01"},
+    )
+    assert too_long.status_code == 422
+
+    # Excessively huge budget rejected.
+    huge_budget = await client.post(
+        "/api/v1/itinerary/generate",
+        json={**TRIP_PAYLOAD, "budget": 9_999_999.0},
+    )
+    assert huge_budget.status_code == 422
+
+    # Plaintext HTTP upstream URLs rejected in Settings.
+    with pytest.raises(ValidationError):
+        Settings(nominatim_base_url="http://evil.example.com")
+
+    # Malformed weather JSON payload returns clean 502, never unhandled 500.
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=["bad"]))
+    ) as http:
+        app.dependency_overrides[get_weather_http_client] = lambda: http
+        res_bad = await client.get(
+            "/api/v1/weather", params={"lat": 36.32, "lon": 74.67}
+        )
+    assert res_bad.status_code == 502
+    assert res_bad.json()["error"]["code"] == "EXTERNAL_SERVICE_ERROR"
+
+
+async def test_geocoding_lru_cache_is_bounded():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[{"lat": "36.32", "lon": "74.66", "display_name": "Place"}],
+        )
+
+    settings = Settings(
+        nominatim_min_interval_seconds=0.0,
+        geocoding_cache_max_entries=10,
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        svc = GeocodingService(settings=settings, http_client=http)
+        for i in range(15):
+            await svc.geocode_place(f"Unique Place {i}")
+        assert len(svc._cache) == 10
 
 
 # --- API key authentication (X-API-Key) ------------------------------------

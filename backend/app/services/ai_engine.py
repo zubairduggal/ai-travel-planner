@@ -131,7 +131,11 @@ class AIEngine:
         except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
             raise AITimeoutError() from exc
         except genai_errors.APIError as exc:
-            logger.warning("Gemini API error %s: %s", exc.code, exc)
+            logger.warning(
+                "Gemini API error code=%s status=%s",
+                exc.code,
+                getattr(exc, "status", None),
+            )
             if _is_auth_error(exc):
                 raise AIAuthError() from exc
             if exc.code == 429:
@@ -226,8 +230,7 @@ class AIEngine:
                 continue
             return self._to_response(itinerary, trip)
 
-        assert last_error is not None
-        raise last_error
+        raise last_error or AIResponseError()
 
     async def regenerate_slot(
         self, slot_req: RegenerateSlotRequestSchema
@@ -269,8 +272,7 @@ class AIEngine:
                 estimated_cost=round(llm_act.estimated_cost, 2),
             )
 
-        assert last_error is not None
-        raise last_error
+        raise last_error or AIResponseError()
 
 
 @lru_cache
