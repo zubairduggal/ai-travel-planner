@@ -41,6 +41,49 @@ class TripRequestModel {
   }
 }
 
+/// Outgoing request payload for `POST /api/v1/itinerary/regenerate-slot` (FM3).
+class RegenerateSlotRequestModel {
+  const RegenerateSlotRequestModel({
+    required this.destination,
+    required this.dayNumber,
+    required this.timeSlot,
+    required this.budgetRemaining,
+    required this.currency,
+    required this.interests,
+    required this.travelStyle,
+    this.existingActivityTitles = const [],
+    this.activityId,
+    this.userNote,
+  });
+
+  final String destination;
+  final int dayNumber;
+  final String timeSlot;
+  final double budgetRemaining;
+  final String currency;
+  final List<String> interests;
+  final String travelStyle;
+  final List<String> existingActivityTitles;
+  final String? activityId;
+  final String? userNote;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'destination': destination.trim(),
+      'day_number': dayNumber,
+      'time_slot': timeSlot,
+      'budget_remaining': budgetRemaining < 0 ? 0.0 : budgetRemaining,
+      'currency': currency.toUpperCase(),
+      'interests': interests.isEmpty ? const ['Sightseeing'] : interests,
+      'travel_style': travelStyle,
+      'existing_activity_titles': existingActivityTitles,
+      if (activityId != null) 'activity_id': activityId,
+      if (userNote != null && userNote!.trim().isNotEmpty)
+        'user_note': userNote!.trim(),
+    };
+  }
+}
+
 /// Complete itinerary returned by FastAPI `TripItineraryResponseSchema`
 /// plus optional client metadata (startDate, targetBudget, travelStyle, interests)
 /// for offline viewing, budget tracking, and slot regeneration.

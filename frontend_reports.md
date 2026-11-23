@@ -6,7 +6,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **FM1: Infrastructure & M3 Setup** | Completed | `flutter analyze`: 0 issues; `flutter test`: 7/7 passed | `9a7fcd0` | 2026-11-23 |
 | **FM2: Form & Backend API Integration** | Completed | `flutter analyze`: 0 issues; 17 unit/widget + 1 live E2E passed | `3833239` | 2026-11-23 |
-| **FM3: Maps & Slot Customization** | Pending | - | - | - |
+| **FM3: Maps & Slot Customization** | Completed | `flutter analyze`: 0 issues; `flutter test`: 22/22 passed | _pending commit_ | 2026-11-23 |
 | **FM4: Offline Caching & Expense Tracker** | Pending | - | - | - |
 | **FM5: Firebase Auth & Store Release** | Pending | - | - | - |
 
@@ -60,5 +60,25 @@
 - **Notes / Observations:**
   - End-to-end verification confirmed zero schema mismatches between Flutter (`dio`) and FastAPI (`v1.0.1`), including live `X-Cache: MISS` → `X-Cache: HIT` caching.
   - Ready for FM3 (Interactive Maps, external navigation, and Slot Editing / Regeneration).
+
+---
+
+## Milestone FM3 Report
+- **Date:** 2026-11-23
+- **Features Completed:**
+  - Added `flutter_map: ^8.3.2`, `latlong2: ^0.10.1`, and `url_launcher: ^6.3.3` to `frontend/pubspec.yaml`.
+  - Configured platform URL-launch manifests: `INTERNET` + `<queries>` (`https`, `geo`) in `android/app/src/main/AndroidManifest.xml`, and `LSApplicationQueriesSchemes` (`https`, `comgooglemaps`, `maps`) in `ios/Runner/Info.plist`.
+  - `lib/core/utils/map_launcher.dart`: Cross-platform external maps URI builder (Google Maps on Android/Web, Apple Maps on iOS/macOS) + `openExternalMaps`.
+  - `lib/screens/map/map_screen.dart`: Interactive OpenStreetMap view (`userAgentPackageName: 'com.numl.aitravelplanner'` + `© OpenStreetMap contributors` attribution), day switcher chips, sequential `PolylineLayer`, color-coded numbered `MarkerLayer` pins, bottom preview card with "Navigate" button, and safe skipping of unverified (`null`) GPS pins.
+  - `lib/screens/itinerary/slot_editor_sheet.dart`, `ApiService.regenerateSlot`, `TripProvider` (`updateActivityNotes`, `deleteActivity`, `regenerateActivitySlot`), and `ItineraryScreen` Map action button + slot editor integration.
+  - `test/map_and_slot_test.dart`: 5 new test suites verifying external Maps URIs, `/api/v1/itinerary/regenerate-slot` swap + cost recalculation, note editing, activity deletion, `MapScreen` numbered pins/polylines/empty-GPS fallback, and full `SlotEditorSheet` UI flow.
+- **Flutter Analyze & Test Output:**
+  ```text
+  Analyzing frontend...
+  No issues found!
+  00:22 +22 ~1: All tests passed!
+  ```
+- **Notes / Observations:**
+  - Ready for FM4 (Offline Caching with Hive CE, Multi-Currency Expense Tracker, Weather Card & Packing Checklist).
 
 ---

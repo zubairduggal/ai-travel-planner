@@ -2,13 +2,16 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
+import '../../models/activity_model.dart';
 import '../../models/day_plan_model.dart';
 import '../../models/trip_model.dart';
 import '../../providers/trip_provider.dart';
 import '../../widgets/activity_card.dart';
+import '../map/map_screen.dart';
+import 'slot_editor_sheet.dart';
 
-/// Day-by-day tabbed itinerary viewer (MFR-06; Maps & Slot editing added in FM3).
-class ItineraryScreen extends StatelessWidget {
+/// Day-by-day tabbed itinerary viewer with Map view & Slot customization (MFR-06–09).
+class ItineraryScreen extends StatefulWidget {
   const ItineraryScreen({
     super.key,
     required this.trip,
@@ -17,11 +20,62 @@ class ItineraryScreen extends StatelessWidget {
   final TripModel trip;
 
   @override
+  State<ItineraryScreen> createState() => _ItineraryScreenState();
+}
+
+class _ItineraryScreenState extends State<ItineraryScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    final length = widget.trip.days.isEmpty ? 1 : widget.trip.days.length;
+    _tabController = TabController(length: length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _openMap(TripModel currentTrip) {
+    final dayIdx = _tabController.index.clamp(0, currentTrip.days.length - 1);
+    final dayNumber = currentTrip.days[dayIdx].dayNumber;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MapScreen(
+          trip: currentTrip,
+          initialDayNumber: dayNumber,
+        ),
+      ),
+    );
+  }
+
+  void _openSlotEditor(
+    TripModel currentTrip,
+    int dayNumber,
+    ActivityModel activity,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => SlotEditorSheet(
+        trip: currentTrip,
+        dayNumber: dayNumber,
+        activity: activity,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = context.watch<TripProvider>();
-    // Prefer updated copy from provider if available (for FM3 slot edits).
-    final currentTrip =
-        provider.activeTrip?.tripId == trip.tripId ? provider.activeTrip! : trip;
+    final currentTrip = provider.activeTrip?.tripId == widget.trip.tripId
+        ? provider.activeTrip!
+        : widget.trip;
     final days = currentTrip.days;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
@@ -33,40 +87,49 @@ class ItineraryScreen extends StatelessWidget {
       );
     }
 
-    return DefaultTabController(
-      length: days.length,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(currentTrip.destination),
-          bottom: TabBar(
-            isScrollable: days.length > 3,
-            tabAlignment: days.length > 3 ? TabAlignment.start : TabAlignment.fill,
-            tabs: [
-              for (final day in days) Tab(text: 'Day ${day.dayNumber}'),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(currentTrip.destination),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            tooltip: 'Open Map View',
+            onPressed: () => _openMap(currentTrip),
           ),
-        ),
-        body: Column(
-          children: [
-            _TripSummaryHeader(
-              trip: currentTrip,
-              cacheStatus: provider.lastCacheStatus,
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  for (final day in days)
-                    _DayPlanView(
-                      day: day,
-                      currency: currentTrip.currency,
-                      colors: colors,
-                      theme: theme,
-                    ),
-                ],
-              ),
-            ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: days.length > 3,
+          tabAlignment:
+              days.length > 3 ? TabAlignment.start : TabAlignment.fill,
+          tabs: [
+            for (final day in days) Tab(text: 'Day ${day.dayNumber}'),
           ],
         ),
+      ),
+      body: Column(
+        children: [
+          _TripSummaryHeader(
+            trip: currentTrip,
+            cacheStatus: provider.lastCacheStatus,
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                for (final day in days)
+                  _DayPlanView(
+                    day: day,
+                    currency: currentTrip.currency,
+                    colors: colors,
+                    theme: theme,
+                    onCustomizeActivity: (act) =>
+                        _openSlotEditor(currentTrip, day.dayNumber, act),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -169,12 +232,14 @@ class _DayPlanView extends StatelessWidget {
     required this.currency,
     required this.colors,
     required this.theme,
+    required this.onCustomizeActivity,
   });
 
   final DayPlanModel day;
   final String currency;
   final ColorScheme colors;
   final ThemeData theme;
+  final ValueChanged<ActivityModel> onCustomizeActivity;
 
   @override
   Widget build(BuildContext context) {
@@ -243,12 +308,26 @@ class _DayPlanView extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 12),
-        for (var i = 0; i < day.activities.length; i++)
-          ActivityCard(
-            activity: day.activities[i],
-            currency: currency,
-            indexNumber: i + 1,
-          ),
+        if (day.activities.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Text(
+              'All activities removed for Day ${day.dayNumber}.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          for (var i = 0; i < day.activities.length; i++)
+            ActivityCard(
+              activity: day.activities[i],
+              currency: currency,
+              indexNumber: i + 1,
+              onTap: () => onCustomizeActivity(day.activities[i]),
+              onCustomizeTap: () => onCustomizeActivity(day.activities[i]),
+            ),
       ],
     );
   }

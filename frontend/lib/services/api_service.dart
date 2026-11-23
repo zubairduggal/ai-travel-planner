@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../core/constants/api_constants.dart';
+import '../models/activity_model.dart';
 import '../models/trip_model.dart';
 
 /// Structured error thrown by [ApiService] matching our FastAPI error envelope.
@@ -106,6 +107,37 @@ class ApiService {
       throw ApiException(
         code: 'PARSE_ERROR',
         message: 'Could not read the itinerary returned by the server: $e',
+      );
+    }
+  }
+
+  /// Calls `POST /api/v1/itinerary/regenerate-slot` to swap a single activity.
+  Future<ActivityModel> regenerateSlot(
+    RegenerateSlotRequestModel request, {
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        ApiConstants.regenerateSlotEndpoint,
+        data: request.toJson(),
+        cancelToken: cancelToken,
+      );
+      final data = response.data;
+      if (data == null) {
+        throw const ApiException(
+          code: 'EMPTY_RESPONSE',
+          message: 'Server returned an empty replacement activity.',
+        );
+      }
+      return ActivityModel.fromJson(data);
+    } on DioException catch (e) {
+      throw _mapDioError(e);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        code: 'PARSE_ERROR',
+        message: 'Could not read the replacement activity: $e',
       );
     }
   }
