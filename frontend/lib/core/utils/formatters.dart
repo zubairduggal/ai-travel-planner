@@ -24,8 +24,9 @@ class AppFormatters {
   static String formatCurrency(double amount, String currencyCode) {
     final code = currencyCode.toUpperCase();
     final symbol = AppStrings.currencySymbols[code] ?? '$code ';
-    final formatted = NumberFormat('#,##0.##').format(amount);
-    return '$symbol$formatted';
+    final sign = amount < 0 ? '-' : '';
+    final formatted = NumberFormat('#,##0.##').format(amount.abs());
+    return '$sign$symbol$formatted';
   }
 
   static String formatDistance(double? km) {

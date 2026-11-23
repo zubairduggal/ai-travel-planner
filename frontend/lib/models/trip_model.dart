@@ -21,7 +21,12 @@ class TripRequestModel {
   final List<String> interests;
   final String travelStyle;
 
-  int get durationDays => endDate.difference(startDate).inDays + 1;
+  /// Inclusive trip length calculated in UTC to avoid DST off-by-one bugs.
+  int get durationDays {
+    final startUtc = DateTime.utc(startDate.year, startDate.month, startDate.day);
+    final endUtc = DateTime.utc(endDate.year, endDate.month, endDate.day);
+    return endUtc.difference(startUtc).inDays + 1;
+  }
 
   Map<String, dynamic> toJson() {
     return {
