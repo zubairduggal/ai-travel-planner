@@ -30,8 +30,9 @@ class Settings(BaseSettings):
 
     # --- Gemini (M2) ---
     gemini_api_key: str | None = None
-    # Current stable Flash model per ai.google.dev deprecations page (Nov 2026).
-    gemini_model: str = "gemini-3.8-flash"
+    # Fast, cost-efficient stable Flash model with automatic 503 failover.
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_fallback_model: str | None = "gemini-3.8-flash"
     # Total time allowed for one Gemini call, in seconds.
     gemini_timeout_seconds: float = Field(default=60.0, gt=0)
     gemini_temperature: float = Field(default=0.4, ge=0, le=2)

@@ -201,3 +201,21 @@
   ```
 
 ---
+
+## Live Gemini Verification & Model Failover Update
+- **Date:** 2026-11-23
+- **Live Integration Findings & Improvement:**
+  - Tested live Gemini API end-to-end; `gemini-3.8-flash` experienced temporary `503 UNAVAILABLE` high-demand spikes where SDK default retries (`attempts=5`, `max_delay=60s`) caused `504` timeouts.
+  - Updated `app/core/config.py` and `app/services/ai_engine.py`:
+    - Set default `GEMINI_MODEL=gemini-3.5-flash-lite` (fast ~3.3s structured JSON generation) with automatic `503` failover to `GEMINI_FALLBACK_MODEL=gemini-3.8-flash`.
+    - Capped SDK internal retries (`HttpRetryOptions(attempts=2, max_delay=4.0)`) so failover happens quickly instead of timing out.
+    - Added unit test `test_generate_itinerary_falls_back_on_503_unavailable` bringing `app/services/ai_engine.py` to **100% coverage**.
+- **Full Suite Verification (0 skipped — Unit + Mock + Live Gemini + Live Nominatim):**
+  ```text
+  black --check app tests -> 29 files would be left unchanged (exit 0)
+  flake8 app tests        -> 0 errors (exit 0)
+  RUN_LIVE_TESTS=1 pytest --cov=app --cov-fail-under=85 -v -> 70 passed in 9.30s | 95.73% coverage
+  ```
+- **Security Check:** `backend/.env` remains strictly gitignored and is never committed to GitHub.
+
+---

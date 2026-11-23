@@ -91,9 +91,11 @@ class AIEngine:
         elif settings.gemini_api_key:
             self._client = genai.Client(
                 api_key=settings.gemini_api_key,
-                # HttpOptions.timeout is in milliseconds.
+                # HttpOptions.timeout is in milliseconds; cap SDK retries so
+                # 503 demand spikes can fail over quickly to fallback model.
                 http_options=types.HttpOptions(
-                    timeout=int(settings.gemini_timeout_seconds * 1000)
+                    timeout=int(settings.gemini_timeout_seconds * 1000),
+                    retry_options=types.HttpRetryOptions(attempts=2, max_delay=4.0),
                 ),
             )
         else:
@@ -112,17 +114,18 @@ class AIEngine:
             response_schema=response_schema,
         )
 
-    async def _call_gemini(
+    async def _call_model(
         self,
+        model: str,
         prompt: str,
         *,
         config: types.GenerateContentConfig | None = None,
     ) -> str:
-        """One Gemini request. Returns raw response text."""
+        """Call a specific Gemini model once and return raw response text."""
         try:
             response = await asyncio.wait_for(
                 self._client.aio.models.generate_content(
-                    model=self._settings.gemini_model,
+                    model=model,
                     contents=prompt,
                     config=config or self._config(),
                 ),
@@ -132,7 +135,8 @@ class AIEngine:
             raise AITimeoutError() from exc
         except genai_errors.APIError as exc:
             logger.warning(
-                "Gemini API error code=%s status=%s",
+                "Gemini API error model=%s code=%s status=%s",
+                model,
                 exc.code,
                 getattr(exc, "status", None),
             )
@@ -150,6 +154,31 @@ class AIEngine:
             # e.g. blocked by safety filters or empty candidate list.
             raise AIResponseError("The AI service returned an empty response.")
         return text
+
+    async def _call_gemini(
+        self,
+        prompt: str,
+        *,
+        config: types.GenerateContentConfig | None = None,
+    ) -> str:
+        """Call primary Gemini model, failing over to fallback on 503 demand spikes."""
+        primary = self._settings.gemini_model
+        fallback = self._settings.gemini_fallback_model
+        try:
+            return await self._call_model(primary, prompt, config=config)
+        except AIProviderError as exc:
+            cause = exc.__cause__
+            is_unavailable = isinstance(cause, genai_errors.APIError) and (
+                cause.code == 503
+            )
+            if is_unavailable and fallback and fallback != primary:
+                logger.warning(
+                    "Primary model %s returned 503; falling back to %s",
+                    primary,
+                    fallback,
+                )
+                return await self._call_model(fallback, prompt, config=config)
+            raise
 
     @staticmethod
     def _parse(raw: str, trip: TripRequestSchema) -> LLMItinerary:

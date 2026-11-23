@@ -64,7 +64,8 @@ GitHub Actions ([.github/workflows/backend-ci.yml](../.github/workflows/backend-
 | `DEBUG` | `false` | FastAPI debug mode |
 | `API_V1_PREFIX` | `/api/v1` | Prefix for v1 routes |
 | `GEMINI_API_KEY` | *(unset)* | Google Gemini API key (required for `/generate` & `/regenerate-slot`) |
-| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model ID |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Primary Gemini model ID |
+| `GEMINI_FALLBACK_MODEL` | `gemini-3.8-flash` | Automatic fallback model on 503 high demand |
 | `GEMINI_TIMEOUT_SECONDS` | `60` | Timeout per Gemini call (seconds) |
 | `GEMINI_TEMPERATURE` | `0.4` | Sampling temperature (`0`–`2`) |
 | `GEMINI_MAX_RETRIES` | `1` | Retries when Gemini returns malformed JSON |

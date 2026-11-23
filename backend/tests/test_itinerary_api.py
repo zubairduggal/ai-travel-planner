@@ -313,6 +313,28 @@ async def test_generate_itinerary_handles_provider_errors(client, exc):
     assert response.json()["error"]["code"] == "AI_PROVIDER_ERROR"
 
 
+async def test_generate_itinerary_falls_back_on_503_unavailable(client):
+    unavailable = genai_errors.ServerError(
+        503, {"error": {"code": 503, "message": "UNAVAILABLE"}}
+    )
+    fake_client, models = _make_fake_client([unavailable, VALID_LLM_JSON])
+    settings = Settings(
+        gemini_api_key="test-key",
+        gemini_model="gemini-3.8-flash",
+        gemini_fallback_model="gemini-3.5-flash-lite",
+        gemini_max_retries=0,
+    )
+    _override_engine(AIEngine(settings=settings, client=fake_client))
+
+    response = await client.post("/api/v1/itinerary/generate", json=VALID_TRIP_PAYLOAD)
+
+    assert response.status_code == 200
+    assert [c["model"] for c in models.calls] == [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+    ]
+
+
 async def test_generate_itinerary_rejects_invalid_request_body(client):
     bad_payload = {**VALID_TRIP_PAYLOAD, "end_date": "2026-06-01"}
     response = await client.post("/api/v1/itinerary/generate", json=bad_payload)
