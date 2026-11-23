@@ -8,7 +8,7 @@
 | **M2: AI Itinerary Engine** | Completed | 99% (34 passed, 1 live skipped) | `0ea88ae` | 2026-11-23 |
 | **M3: Geocoding & Verification**| Completed | 97% (54 passed, 1 live passed) | `ac6061f` | 2026-11-23 |
 | **M4: Caching & Rate Limit** | Completed | 97% (64 passed, 2 live skipped) | `cfa8744` | 2026-11-23 |
-| **M5: Docker & Production** | Completed | 97.03% (64 passed, `black=0`, `flake8=0`) | _pending commit_ | 2026-11-23 |
+| **M5: Docker & Production** | Completed | 97.03% (64 passed, `black=0`, `flake8=0`) | `b389429` | 2026-11-23 |
 
 ---
 
