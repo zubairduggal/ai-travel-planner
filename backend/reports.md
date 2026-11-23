@@ -4,7 +4,7 @@
 
 | Milestone | Status | Test Coverage | GitHub Commit Hash | Date Completed |
 | :--- | :--- | :--- | :--- | :--- |
-| **M1: Core API Setup** | Completed (not yet pushed) | Not measured (`pytest-cov` is added in M5) | - (Git not installed) | 2026-11-23 |
+| **M1: Core API Setup** | Completed | Not measured (`pytest-cov` is added in M5); 18/18 tests passed | `3b142a8` | 2026-11-23 |
 | **M2: AI Itinerary Engine** | Pending | - | - | - |
 | **M3: Geocoding & Verification**| Pending | - | - | - |
 | **M4: Caching & Rate Limit** | Pending | - | - | - |
@@ -40,7 +40,7 @@
 - **Notes / Observations:**
   - `latitude` / `longitude` are optional (`null`) and `verified` defaults to `false` until the M3 geocoding service fills them. The PRD sample response still validates.
   - `travel_style` is accepted as free text, because the PRD only shows `"Moderate"` and does not list allowed values.
-  - The commit/push step is blocked: `git` is not installed / not on PATH on this machine.
+  - Committed and pushed to https://github.com/zubairduggal/ai-travel-planner (`main`, commit `3b142a8`, message `feat: complete milestone M1`).
   - Ready for Gemini API integration (M2).
 
 ---
