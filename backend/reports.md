@@ -8,7 +8,7 @@
 | **M2: AI Itinerary Engine** | Completed | 99% (34 passed, 1 live skipped) | `0ea88ae` | 2026-11-23 |
 | **M3: Geocoding & Verification**| Completed | 97% (54 passed, 1 live passed) | `ac6061f` | 2026-11-23 |
 | **M4: Caching & Rate Limit** | Completed | 97% (64 passed, 2 live skipped) | `cfa8744` | 2026-11-23 |
-| **M5: Docker & Production** | Pending | - | - | - |
+| **M5: Docker & Production** | Completed | 97.03% (64 passed, `black=0`, `flake8=0`) | _pending commit_ | 2026-11-23 |
 
 ---
 
@@ -150,5 +150,24 @@
 - **Notes / Observations:**
   - Discovered and fixed a Windows-specific `diskcache` SQLite thread-local handle lock by isolating DiskCache I/O onto a dedicated single-thread executor (`DiskCacheBackend._ensure_cache`), ensuring clean shutdown and consistent ~5 ms cache hits.
   - Ready for Integration Testing, Docker & Production Readiness (M5).
+
+---
+
+## Milestone 5 (M5) Report — Final Release Audit (`v1.0.0`)
+- **Date:** 2026-11-23
+- **Features Completed:**
+  - `backend/Dockerfile` & `backend/.dockerignore`: Multi-stage lightweight `python:3.11-slim` production container (stage 1 builds wheels; stage 2 installs offline wheels, creates non-root `appuser`, exposes port `8000`, includes `HEALTHCHECK` against `/api/v1/health`).
+  - `.github/workflows/backend-ci.yml`: Automated GitHub Actions pipeline running on push/PR to `main` — `lint-and-test` (`black --check`, `flake8`, `pytest --cov=app --cov-fail-under=85`) followed by `docker-build` (`docker build -t ai-travel-planner-backend:ci ./backend`).
+  - `backend/pyproject.toml` & `backend/.flake8`: Standardized 88-char formatting (`black==26.10.1`), linting (`flake8==7.5.0`), and coverage (`fail_under = 85`).
+  - Finalized OpenAPI documentation (`app/main.py`): version `1.0.0`, full API description, structured `openapi_tags` (`Health`, `Itinerary`, `Weather`), verified Swagger UI (`/docs`), ReDoc (`/redoc`), and `/openapi.json` routes/tags in `tests/test_health.py`.
+- **Quality Gate Results:**
+  ```text
+  black --check app tests   -> 29 files would be left unchanged (exit 0)
+  flake8 app tests          -> 0 warnings / 0 errors (exit 0)
+  pytest --cov=app --cov-fail-under=85 -> 64 passed, 2 skipped | 97.03% coverage (exit 0)
+  ```
+- **Notes / Observations:**
+  - Local `docker build` was not executed because Docker Desktop's engine daemon (`dockerDesktopLinuxEngine`) was stopped on this machine; `docker-build` is configured to run automatically in GitHub Actions CI upon push and can be run locally once Docker Desktop is started.
+  - All 5 milestones (M1–M5) are complete and tagged `v1.0.0`.
 
 ---

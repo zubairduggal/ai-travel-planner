@@ -66,7 +66,8 @@ def extract_place_name(activity_title: str) -> str:
 def _format_viewbox(bbox: tuple[float, float, float, float]) -> str:
     """Convert Nominatim boundingbox (min_lat, max_lat, min_lon, max_lon) to viewbox.
 
-    Nominatim's `viewbox` expects `xmin,ymin,xmax,ymax` -> `min_lon,min_lat,max_lon,max_lat`.
+    Nominatim's `viewbox` expects `xmin,ymin,xmax,ymax`
+    (i.e. `min_lon,min_lat,max_lon,max_lat`).
     """
     min_lat, max_lat, min_lon, max_lon = bbox
     return f"{min_lon},{min_lat},{max_lon},{max_lat}"

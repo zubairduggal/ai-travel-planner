@@ -1,15 +1,15 @@
-# AI-Powered Travel Planner — Backend
+# AI-Powered Travel Planner — Backend (`v1.0.0`)
 
-FastAPI backend for the AI-Powered Travel Planner Flutter app.
+Production-ready FastAPI backend for the AI-Powered Travel Planner Flutter app.
 
-**Current status:** Milestone 4 (Caching, Rate Limiting, API Key Auth & Slot Regeneration) complete. See [reports.md](reports.md).
+**Status:** All milestones **M1–M5 complete** (`v1.0.0`, **97.03% test coverage**, `black` & `flake8` clean). See [reports.md](reports.md) for full milestone logs.
 
 ## Requirements
-- Python 3.11+
+- Python 3.11+ (or Docker)
 - A Google Gemini API key (for live itinerary generation)
 - Optional: Redis server for production distributed caching & rate limiting
 
-## Setup (Windows PowerShell)
+## Local Setup (Windows PowerShell)
 ```powershell
 cd backend
 python -m venv .venv
@@ -18,7 +18,7 @@ Copy-Item .env.example .env
 # Edit .env and set GEMINI_API_KEY=<your_key>
 ```
 
-## Run the server
+## Run Locally
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
@@ -27,32 +27,48 @@ Copy-Item .env.example .env
 - Swagger UI: http://127.0.0.1:8000/docs
 - ReDoc: http://127.0.0.1:8000/redoc
 
-## Run tests
+## Run with Docker
 ```powershell
-# Unit & mocked integration tests with coverage
-.\.venv\Scripts\python.exe -m pytest --cov=app -v
+# Build multi-stage production image
+docker build -t ai-travel-planner-backend ./backend
 
-# Run live Nominatim GPS precision test
+# Run container (passing .env for GEMINI_API_KEY, API_KEY, etc.)
+docker run --rm -p 8000:8000 --env-file ./backend/.env ai-travel-planner-backend
+```
+
+## Tests, Coverage & Linting
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m black --check app tests
+.\.venv\Scripts\python.exe -m flake8 app tests
+.\.venv\Scripts\python.exe -m pytest --cov=app --cov-report=term-missing --cov-fail-under=85 -v
+
+# Optional live API tests:
 $env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m pytest tests/test_geocoding.py -m live -v
-
-# Run live Gemini integration test (requires GEMINI_API_KEY)
 $env:RUN_LIVE_TESTS="1"; $env:GEMINI_API_KEY="your_key"; .\.venv\Scripts\python.exe -m pytest tests/test_itinerary_api.py -m live -v
 ```
+
+## CI/CD
+GitHub Actions ([.github/workflows/backend-ci.yml](../.github/workflows/backend-ci.yml)) automatically runs on every push and PR to `main`:
+1. `black --check app tests`
+2. `flake8 app tests`
+3. `pytest --cov=app --cov-fail-under=85`
+4. `docker build -t ai-travel-planner-backend:ci ./backend`
 
 ## Configuration (`.env`)
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `APP_NAME` | `AI Travel Planner API` | Title shown in API docs |
-| `APP_VERSION` | `0.4.0` | API version |
+| `APP_VERSION` | `1.0.0` | API version |
 | `APP_ENV` | `development` | `development`, `staging`, or `production` |
 | `DEBUG` | `false` | FastAPI debug mode |
 | `API_V1_PREFIX` | `/api/v1` | Prefix for v1 routes |
-| `GEMINI_API_KEY` | *(unset)* | Google Gemini API key (required for `/generate`) |
+| `GEMINI_API_KEY` | *(unset)* | Google Gemini API key (required for `/generate` & `/regenerate-slot`) |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model ID |
 | `GEMINI_TIMEOUT_SECONDS` | `60` | Timeout per Gemini call (seconds) |
 | `GEMINI_TEMPERATURE` | `0.4` | Sampling temperature (`0`–`2`) |
 | `GEMINI_MAX_RETRIES` | `1` | Retries when Gemini returns malformed JSON |
-| `NOMINATIM_USER_AGENT` | `AITravelPlanner/0.4.0 (...)` | Required custom User-Agent for OpenStreetMap Nominatim |
+| `NOMINATIM_USER_AGENT` | `AITravelPlanner/1.0.0 (...)` | Required custom User-Agent for OpenStreetMap Nominatim |
 | `NOMINATIM_MIN_INTERVAL_SECONDS` | `1.05` | Enforces Nominatim <= 1 req/sec policy |
 | `GOOGLE_PLACES_API_KEY` | *(unset)* | Optional Google Places API (New) fallback |
 | `MAX_SAME_DAY_DISTANCE_KM` | `50.0` | Haversine threshold for same-day feasibility warnings |
@@ -67,9 +83,9 @@ $env:RUN_LIVE_TESTS="1"; $env:GEMINI_API_KEY="your_key"; .\.venv\Scripts\python.
 | `API_KEY` | *(unset)* | Optional `X-API-Key` secret for itinerary routes |
 
 ## API Endpoints
-| Method | Path | Milestone | Status |
+| Method | Path | Auth / Limit | Status |
 | :--- | :--- | :--- | :--- |
-| GET | `/api/v1/health` | M1 | Done |
-| POST | `/api/v1/itinerary/generate` | M2 + M3 + M4 | Done |
-| GET | `/api/v1/weather` | M3 | Done |
-| POST | `/api/v1/itinerary/regenerate-slot` | M4 | Done |
+| GET | `/api/v1/health` | Public | Done |
+| POST | `/api/v1/itinerary/generate` | Optional `X-API-Key`, `5/day`, cached | Done |
+| POST | `/api/v1/itinerary/regenerate-slot` | Optional `X-API-Key`, `20/day` | Done |
+| GET | `/api/v1/weather` | Public | Done |

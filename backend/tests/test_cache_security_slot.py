@@ -1,4 +1,4 @@
-"""Tests for caching (DiskCache/Redis), rate limiting (5/day), API key auth, and regenerate-slot (M4)."""
+"""Tests for caching, rate limiting (5/day), API key auth, and regenerate-slot (M4)."""
 
 import json
 import time
@@ -73,7 +73,9 @@ class _CountingModels:
     async def generate_content(self, *, model, contents, config):
         self.call_count += 1
         self.last_prompt = contents
-        text = self._responses.pop(0) if len(self._responses) > 1 else self._responses[0]
+        text = (
+            self._responses.pop(0) if len(self._responses) > 1 else self._responses[0]
+        )
         return SimpleNamespace(text=text)
 
 
@@ -329,7 +331,9 @@ async def test_regenerate_slot_success_with_geocoding(client):
         if "altit" in q:
             return httpx.Response(
                 200,
-                json=[{"lat": "36.3144", "lon": "74.6819", "display_name": "Altit Fort"}],
+                json=[
+                    {"lat": "36.3144", "lon": "74.6819", "display_name": "Altit Fort"}
+                ],
             )
         return httpx.Response(200, json=[])
 

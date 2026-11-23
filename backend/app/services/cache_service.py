@@ -83,9 +83,7 @@ class MemoryCacheBackend(CacheBackend):
         return value
 
     async def set(self, key: str, value: str, ttl_seconds: int) -> None:
-        expires_at = (
-            time.monotonic() + ttl_seconds if ttl_seconds > 0 else None
-        )
+        expires_at = time.monotonic() + ttl_seconds if ttl_seconds > 0 else None
         self._store[key] = (value, expires_at)
 
     async def delete(self, key: str) -> None:
@@ -96,16 +94,18 @@ class MemoryCacheBackend(CacheBackend):
 
 
 class DiskCacheBackend(CacheBackend):
-    """SQLite-backed local DiskCache running off the event loop on a single worker thread.
+    """SQLite-backed local DiskCache running on a dedicated single worker thread.
 
     Using a single-thread executor ensures DiskCache's thread-local SQLite
-    connection is reused across calls and cleanly closed on shutdown (critical on Windows).
+    connection is reused across calls and cleanly closed on shutdown.
     """
 
     def __init__(self, directory: str) -> None:
         self._directory = directory
         self._cache: diskcache.Cache | None = None
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="diskcache")
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="diskcache"
+        )
 
     def _ensure_cache(self) -> diskcache.Cache:
         if self._cache is None:

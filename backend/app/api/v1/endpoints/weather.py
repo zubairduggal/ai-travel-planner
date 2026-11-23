@@ -71,7 +71,10 @@ async def get_weather_forecast(
         "latitude": lat,
         "longitude": lon,
         "forecast_days": days,
-        "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
+        "daily": (
+            "temperature_2m_max,temperature_2m_min,"
+            "precipitation_probability_max,weather_code"
+        ),
         "timezone": "auto",
     }
 

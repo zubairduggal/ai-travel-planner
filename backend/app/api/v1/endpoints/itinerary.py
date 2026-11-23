@@ -23,8 +23,14 @@ router = APIRouter(prefix="/itinerary", tags=["Itinerary"])
 _ERRORS = {
     401: {"model": ErrorResponseSchema, "description": "Missing or invalid X-API-Key"},
     429: {"model": ErrorResponseSchema, "description": "Daily rate limit exceeded"},
-    502: {"model": ErrorResponseSchema, "description": "AI returned an error/invalid itinerary"},
-    503: {"model": ErrorResponseSchema, "description": "AI not configured, auth failed or over quota"},
+    502: {
+        "model": ErrorResponseSchema,
+        "description": "AI returned an error/invalid itinerary",
+    },
+    503: {
+        "model": ErrorResponseSchema,
+        "description": "AI not configured, auth failed or over quota",
+    },
     504: {"model": ErrorResponseSchema, "description": "AI request timed out"},
 }
 

@@ -38,14 +38,18 @@ VALID_LLM_JSON = json.dumps(
                     {
                         "time_slot": "Morning",
                         "title": "Boat ride at Attabad Lake",
-                        "description": "Enjoy turquoise waters framed by steep Karakoram peaks.",
+                        "description": (
+                            "Enjoy turquoise waters framed by steep Karakoram peaks."
+                        ),
                         "category": "Nature",
                         "estimated_cost": 35.5,
                     },
                     {
                         "time_slot": "Afternoon",
                         "title": "Walk Hussaini Suspension Bridge",
-                        "description": "Cross the iconic cable bridge near Passu village.",
+                        "description": (
+                            "Cross the iconic cable bridge near Passu village."
+                        ),
                         "category": "Adventure",
                         "estimated_cost": 10.0,
                     },
@@ -58,14 +62,19 @@ VALID_LLM_JSON = json.dumps(
                     {
                         "time_slot": "Morning",
                         "title": "Visit Baltit Fort",
-                        "description": "Explore the 700-year-old historic fort overlooking the valley.",
+                        "description": (
+                            "Explore the 700-year-old historic fort overlooking "
+                            "the valley."
+                        ),
                         "category": "Historical",
                         "estimated_cost": 15.0,
                     },
                     {
                         "time_slot": "Evening",
                         "title": "Sunset at Eagle's Nest Viewpoint",
-                        "description": "Watch golden hour over Rakaposhi and Ultar Sar.",
+                        "description": (
+                            "Watch golden hour over Rakaposhi and Ultar Sar."
+                        ),
                         "category": "Photography",
                         "estimated_cost": 20.0,
                     },
@@ -91,7 +100,9 @@ class _FakeAsyncModels:
         return SimpleNamespace(text=outcome)
 
 
-def _make_fake_client(outcomes: list[object]) -> tuple[SimpleNamespace, _FakeAsyncModels]:
+def _make_fake_client(
+    outcomes: list[object],
+) -> tuple[SimpleNamespace, _FakeAsyncModels]:
     models = _FakeAsyncModels(outcomes)
     client = SimpleNamespace(aio=SimpleNamespace(models=models))
     return client, models
@@ -143,7 +154,11 @@ async def test_generate_itinerary_success(client):
     # Sequential server-assigned activity IDs, coordinates null until M3.
     act_ids = [a.activity_id for d in parsed.days for a in d.activities]
     assert act_ids == ["act_01", "act_02", "act_03", "act_04"]
-    assert all(a.verified is False and a.latitude is None for d in parsed.days for a in d.activities)
+    assert all(
+        a.verified is False and a.latitude is None
+        for d in parsed.days
+        for a in d.activities
+    )
 
     # Confirm Gemini was called with structured JSON output config.
     assert len(models.calls) == 1

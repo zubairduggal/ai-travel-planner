@@ -70,7 +70,18 @@ async def test_unknown_route_returns_404(client):
 async def test_openapi_docs_available(client):
     assert (await client.get("/docs")).status_code == 200
     assert (await client.get("/redoc")).status_code == 200
-    assert (await client.get("/openapi.json")).status_code == 200
+    spec_res = await client.get("/openapi.json")
+    assert spec_res.status_code == 200
+    spec = spec_res.json()
+    assert spec["info"]["version"] == "1.0.0"
+    assert set(spec["paths"].keys()) >= {
+        "/api/v1/health",
+        "/api/v1/itinerary/generate",
+        "/api/v1/itinerary/regenerate-slot",
+        "/api/v1/weather",
+    }
+    tag_names = {tag["name"] for tag in spec.get("tags", [])}
+    assert {"Health", "Itinerary", "Weather"} <= tag_names
 
 
 # --- Request schema --------------------------------------------------------

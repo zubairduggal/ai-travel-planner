@@ -202,7 +202,9 @@ async def test_nominatim_search_headers_params_and_caching():
     assert first.provider == "nominatim"
     # Second call must hit cache (only 1 HTTP request total).
     assert len(seen_requests) == 1
-    assert seen_requests[0].headers["User-Agent"] == "TestTravelApp/1.0 (qa@example.com)"
+    assert (
+        seen_requests[0].headers["User-Agent"] == "TestTravelApp/1.0 (qa@example.com)"
+    )
     assert seen_requests[0].url.params["format"] == "jsonv2"
     assert seen_requests[0].url.params["limit"] == "1"
 
@@ -268,7 +270,9 @@ async def test_google_places_fallback_when_nominatim_misses():
     assert len(seen_requests) == 2
     places_req = seen_requests[1]
     assert places_req.headers["X-Goog-Api-Key"] == "fake-places-key"
-    assert places_req.headers["X-Goog-FieldMask"] == "places.displayName,places.location"
+    assert (
+        places_req.headers["X-Goog-FieldMask"] == "places.displayName,places.location"
+    )
 
 
 async def test_verify_itinerary_populates_coordinates_viewbox_and_feasibility():
@@ -292,12 +296,16 @@ async def test_verify_itinerary_populates_coordinates_viewbox_and_feasibility():
         if "baltit fort" in q:
             return httpx.Response(
                 200,
-                json=[{"lat": "36.3256", "lon": "74.6678", "display_name": "Baltit Fort"}],
+                json=[
+                    {"lat": "36.3256", "lon": "74.6678", "display_name": "Baltit Fort"}
+                ],
             )
         if "attabad lake" in q:
             return httpx.Response(
                 200,
-                json=[{"lat": "36.3274", "lon": "74.8439", "display_name": "Attabad Lake"}],
+                json=[
+                    {"lat": "36.3274", "lon": "74.8439", "display_name": "Attabad Lake"}
+                ],
             )
         return httpx.Response(200, json=[])
 
@@ -341,7 +349,9 @@ async def test_verify_itinerary_populates_coordinates_viewbox_and_feasibility():
         ],
     )
 
-    settings = Settings(nominatim_min_interval_seconds=0.0, max_same_day_distance_km=50.0)
+    settings = Settings(
+        nominatim_min_interval_seconds=0.0, max_same_day_distance_km=50.0
+    )
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         service = GeocodingService(settings=settings, http_client=http)
         verified = await service.verify_itinerary(itinerary)
@@ -362,7 +372,7 @@ async def test_verify_itinerary_populates_coordinates_viewbox_and_feasibility():
     assert day1.total_distance_km is not None
     assert 14.0 <= day1.total_distance_km <= 17.5
 
-    # Activity lookup must include destination viewbox (min_lon,min_lat,max_lon,max_lat).
+    # Activity lookup must include destination viewbox (min_lon,min_lat,max_lon,max_lat)
     assert seen_params[1]["viewbox"] == "74.5,36.2,74.9,36.5"
     assert seen_params[1]["bounded"] == "0"
 
@@ -402,7 +412,9 @@ async def test_itinerary_endpoint_integrates_geocoding(client):
         if "baltit" in q:
             return httpx.Response(
                 200,
-                json=[{"lat": "36.3256", "lon": "74.6678", "display_name": "Baltit Fort"}],
+                json=[
+                    {"lat": "36.3256", "lon": "74.6678", "display_name": "Baltit Fort"}
+                ],
             )
         return httpx.Response(200, json=[])
 
@@ -461,7 +473,9 @@ async def test_weather_endpoint_success(client):
         transport=httpx.MockTransport(lambda req: httpx.Response(200, json=sample))
     ) as http:
         app.dependency_overrides[get_weather_http_client] = lambda: http
-        response = await client.get("/api/v1/weather", params={"lat": 36.32, "lon": 74.67, "days": 2})
+        response = await client.get(
+            "/api/v1/weather", params={"lat": 36.32, "lon": 74.67, "days": 2}
+        )
 
     assert response.status_code == 200
     body = response.json()
@@ -477,7 +491,9 @@ async def test_weather_endpoint_handles_timeout_and_upstream_error(client):
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(raise_timeout)) as http:
         app.dependency_overrides[get_weather_http_client] = lambda: http
-        res_timeout = await client.get("/api/v1/weather", params={"lat": 36.32, "lon": 74.67})
+        res_timeout = await client.get(
+            "/api/v1/weather", params={"lat": 36.32, "lon": 74.67}
+        )
     assert res_timeout.status_code == 504
     assert res_timeout.json()["error"]["code"] == "EXTERNAL_SERVICE_TIMEOUT"
 
@@ -485,7 +501,9 @@ async def test_weather_endpoint_handles_timeout_and_upstream_error(client):
         transport=httpx.MockTransport(lambda req: httpx.Response(500))
     ) as http:
         app.dependency_overrides[get_weather_http_client] = lambda: http
-        res_err = await client.get("/api/v1/weather", params={"lat": 36.32, "lon": 74.67})
+        res_err = await client.get(
+            "/api/v1/weather", params={"lat": 36.32, "lon": 74.67}
+        )
     assert res_err.status_code == 502
     assert res_err.json()["error"]["code"] == "EXTERNAL_SERVICE_ERROR"
 

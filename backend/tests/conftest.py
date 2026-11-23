@@ -36,7 +36,7 @@ def test_settings() -> Settings:
 
 @pytest.fixture
 def noop_geocoder(test_settings: Settings) -> GeocodingService:
-    """Default offline geocoder returning no hits so unit tests never hit the network."""
+    """Offline geocoder returning no hits so unit tests never hit the network."""
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json=[]))
     http_client = httpx.AsyncClient(transport=transport)
     return GeocodingService(settings=test_settings, http_client=http_client)

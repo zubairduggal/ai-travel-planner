@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AI Travel Planner API"
-    app_version: str = "0.4.0"
+    app_version: str = "1.0.0"
     app_env: Literal["development", "staging", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # --- Geocoding & Distance Feasibility (M3) ---
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"
     # Nominatim usage policy forbids default HTTP library User-Agents.
-    nominatim_user_agent: str = "AITravelPlanner/0.4.0 (contact@aitravelplanner.local)"
+    nominatim_user_agent: str = "AITravelPlanner/1.0.0 (contact@aitravelplanner.local)"
     # Nominatim public server allows max 1 request/second globally.
     nominatim_min_interval_seconds: float = Field(default=1.05, ge=0)
     geocoding_timeout_seconds: float = Field(default=10.0, gt=0)
