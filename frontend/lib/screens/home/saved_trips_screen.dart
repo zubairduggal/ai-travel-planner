@@ -5,7 +5,7 @@ import '../../core/utils/formatters.dart';
 import '../../providers/trip_provider.dart';
 import '../itinerary/itinerary_screen.dart';
 
-/// Home / Saved Trips dashboard (persisted offline with Hive CE in FM4).
+/// Home / Saved Trips offline dashboard powered by Hive CE (MFR-10, FM4).
 class SavedTripsScreen extends StatelessWidget {
   const SavedTripsScreen({
     super.key,
@@ -16,12 +16,26 @@ class SavedTripsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trips = context.watch<TripProvider>().trips;
+    final provider = context.watch<TripProvider>();
+    final trips = provider.trips;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Trips')),
+      appBar: AppBar(
+        title: const Text('My Trips'),
+        actions: [
+          if (trips.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Chip(
+                avatar: const Icon(Icons.offline_pin_outlined, size: 16),
+                label: const Text('Offline Ready'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+        ],
+      ),
       body: trips.isEmpty
           ? Center(
               child: Padding(
@@ -43,7 +57,7 @@ class SavedTripsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Create your first AI-powered itinerary to see it saved here.',
+                      'Create your first AI-powered itinerary to view it offline anytime.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: colors.onSurfaceVariant,
@@ -85,28 +99,42 @@ class SavedTripsScreen extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text(subtitle),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          AppFormatters.formatCurrency(
-                            trip.totalEstimatedCost,
-                            trip.currency,
-                          ),
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: colors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              AppFormatters.formatCurrency(
+                                trip.totalEstimatedCost,
+                                trip.currency,
+                              ),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              '${trip.durationDays}d',
+                              style: theme.textTheme.labelSmall,
+                            ),
+                          ],
                         ),
-                        Text(
-                          '${trip.durationDays}d',
-                          style: theme.textTheme.labelSmall,
+                        IconButton(
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            color: colors.error,
+                            size: 20,
+                          ),
+                          tooltip: 'Delete saved trip',
+                          onPressed: () => provider.deleteTrip(trip.tripId),
                         ),
                       ],
                     ),
                     onTap: () {
-                      context.read<TripProvider>().selectTrip(trip);
+                      provider.selectTrip(trip);
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => ItineraryScreen(trip: trip),

@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../core/constants/api_constants.dart';
 import '../models/activity_model.dart';
 import '../models/trip_model.dart';
+import '../models/weather_model.dart';
 
 /// Structured error thrown by [ApiService] matching our FastAPI error envelope.
 class ApiException implements Exception {
@@ -138,6 +139,41 @@ class ApiService {
       throw ApiException(
         code: 'PARSE_ERROR',
         message: 'Could not read the replacement activity: $e',
+      );
+    }
+  }
+
+  /// Calls `GET /api/v1/weather` for daily destination forecast (FM4).
+  Future<WeatherForecastModel> getWeather({
+    required double latitude,
+    required double longitude,
+    int days = 5,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        ApiConstants.weatherEndpoint,
+        queryParameters: {
+          'lat': latitude,
+          'lon': longitude,
+          'days': days.clamp(1, 16),
+        },
+      );
+      final data = response.data;
+      if (data == null) {
+        throw const ApiException(
+          code: 'EMPTY_RESPONSE',
+          message: 'Weather service returned an empty response.',
+        );
+      }
+      return WeatherForecastModel.fromJson(data);
+    } on DioException catch (e) {
+      throw _mapDioError(e);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        code: 'PARSE_ERROR',
+        message: 'Could not parse weather forecast: $e',
       );
     }
   }

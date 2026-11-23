@@ -7,10 +7,13 @@ import '../../models/day_plan_model.dart';
 import '../../models/trip_model.dart';
 import '../../providers/trip_provider.dart';
 import '../../widgets/activity_card.dart';
+import '../../widgets/packing_checklist.dart';
+import '../../widgets/weather_card.dart';
+import '../expense/expense_screen.dart';
 import '../map/map_screen.dart';
 import 'slot_editor_sheet.dart';
 
-/// Day-by-day tabbed itinerary viewer with Map view & Slot customization (MFR-06–09).
+/// Day-by-day itinerary viewer with Map, Expenses, Weather & Packing utilities.
 class ItineraryScreen extends StatefulWidget {
   const ItineraryScreen({
     super.key,
@@ -32,6 +35,12 @@ class _ItineraryScreenState extends State<ItineraryScreen>
     super.initState();
     final length = widget.trip.days.isEmpty ? 1 : widget.trip.days.length;
     _tabController = TabController(length: length, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final provider = context.read<TripProvider>();
+      provider.loadPackingList(widget.trip.tripId);
+      provider.loadWeatherForTrip(widget.trip);
+    });
   }
 
   @override
@@ -49,6 +58,52 @@ class _ItineraryScreenState extends State<ItineraryScreen>
           trip: currentTrip,
           initialDayNumber: dayNumber,
         ),
+      ),
+    );
+  }
+
+  void _openExpenses(TripModel currentTrip) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ExpenseScreen(trip: currentTrip),
+      ),
+    );
+  }
+
+  void _openUtilitiesSheet(TripModel currentTrip) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        minChildSize: 0.45,
+        maxChildSize: 0.95,
+        builder: (sheetContext, scrollController) {
+          final provider = sheetContext.watch<TripProvider>();
+          return ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(16),
+            children: [
+              WeatherCard(
+                forecast: provider.weatherForTrip(currentTrip.tripId),
+                isLoading: provider.isWeatherLoading(currentTrip.tripId),
+                onRefresh: () => provider.loadWeatherForTrip(currentTrip),
+              ),
+              const SizedBox(height: 12),
+              PackingChecklist(
+                items: provider.packingListForTrip(currentTrip.tripId),
+                onToggle: (id) =>
+                    provider.togglePackingItem(currentTrip.tripId, id),
+                onAdd: (title) =>
+                    provider.addPackingItem(currentTrip.tripId, title),
+                onRemove: (id) =>
+                    provider.removePackingItem(currentTrip.tripId, id),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -95,6 +150,16 @@ class _ItineraryScreenState extends State<ItineraryScreen>
             icon: const Icon(Icons.map_outlined),
             tooltip: 'Open Map View',
             onPressed: () => _openMap(currentTrip),
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'Expense Tracker',
+            onPressed: () => _openExpenses(currentTrip),
+          ),
+          IconButton(
+            icon: const Icon(Icons.backpack_outlined),
+            tooltip: 'Weather & Packing',
+            onPressed: () => _openUtilitiesSheet(currentTrip),
           ),
         ],
         bottom: TabBar(

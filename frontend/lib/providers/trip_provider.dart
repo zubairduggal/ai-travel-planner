@@ -1,18 +1,30 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/activity_model.dart';
 import '../models/day_plan_model.dart';
+import '../models/packing_item_model.dart';
 import '../models/trip_model.dart';
+import '../models/weather_model.dart';
 import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
-/// Manages trip generation, active trip state, saved trips, and slot edits.
+/// Manages trips, offline persistence, weather cache, packing checklists, and slot edits.
 class TripProvider extends ChangeNotifier {
-  TripProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+  TripProvider({
+    ApiService? apiService,
+    StorageService? storage,
+  })  : _apiService = apiService ?? ApiService(),
+        _storage = storage ?? InMemoryStorageService();
 
   final ApiService _apiService;
+  final StorageService _storage;
   final List<TripModel> _trips = [];
+  final Map<String, WeatherForecastModel> _weatherByTrip = {};
+  final Map<String, bool> _weatherLoading = {};
+  final Map<String, List<PackingItemModel>> _packingByTrip = {};
 
   TripModel? _activeTrip;
   bool _isGenerating = false;
@@ -32,6 +44,21 @@ class TripProvider extends ChangeNotifier {
   String? get lastCacheStatus => _lastCacheStatus;
   TripRequestModel? get lastRequest => _lastRequest;
 
+  WeatherForecastModel? weatherForTrip(String tripId) => _weatherByTrip[tripId];
+  bool isWeatherLoading(String tripId) => _weatherLoading[tripId] ?? false;
+
+  List<PackingItemModel> packingListForTrip(String tripId) =>
+      List.unmodifiable(_packingByTrip[tripId] ?? const []);
+
+  /// Loads previously saved trips from local offline storage on startup.
+  Future<void> loadSavedTrips() async {
+    final saved = await _storage.loadTrips();
+    _trips
+      ..clear()
+      ..addAll(saved);
+    notifyListeners();
+  }
+
   Future<TripModel?> generateTrip(TripRequestModel request) async {
     _cancelToken?.cancel('Superseded by new trip request');
     _cancelToken = CancelToken();
@@ -49,6 +76,7 @@ class TripProvider extends ChangeNotifier {
         cancelToken: _cancelToken,
       );
       _upsertTrip(result.trip);
+      await _storage.saveTrip(result.trip);
       _lastCacheStatus = result.cacheStatus;
       _isGenerating = false;
       notifyListeners();
@@ -68,6 +96,18 @@ class TripProvider extends ChangeNotifier {
       notifyListeners();
       return null;
     }
+  }
+
+  /// Deletes a saved trip and its local expenses/checklists/weather cache.
+  Future<void> deleteTrip(String tripId) async {
+    await _storage.deleteTrip(tripId);
+    _trips.removeWhere((t) => t.tripId == tripId);
+    _weatherByTrip.remove(tripId);
+    _packingByTrip.remove(tripId);
+    if (_activeTrip?.tripId == tripId) {
+      _activeTrip = _trips.isNotEmpty ? _trips.first : null;
+    }
+    notifyListeners();
   }
 
   /// Updates or clears local user notes on a single activity (MFR-07).
@@ -158,6 +198,103 @@ class TripProvider extends ChangeNotifier {
     }
   }
 
+  /// Loads cached weather first, then refreshes live from backend `/api/v1/weather`.
+  Future<void> loadWeatherForTrip(TripModel trip) async {
+    final cached = await _storage.loadWeather(trip.tripId);
+    if (cached != null) {
+      _weatherByTrip[trip.tripId] = cached;
+      notifyListeners();
+    }
+
+    // Find first verified coordinate in the trip.
+    ActivityModel? located;
+    for (final day in trip.days) {
+      for (final act in day.activities) {
+        if (act.hasCoordinates) {
+          located = act;
+          break;
+        }
+      }
+      if (located != null) break;
+    }
+    if (located == null) return;
+
+    _weatherLoading[trip.tripId] = true;
+    notifyListeners();
+
+    try {
+      final forecast = await _apiService.getWeather(
+        latitude: located.latitude!,
+        longitude: located.longitude!,
+        days: trip.durationDays.clamp(1, 16),
+      );
+      _weatherByTrip[trip.tripId] = forecast;
+      await _storage.saveWeather(trip.tripId, forecast);
+    } catch (_) {
+      // Offline / Airplane Mode: gracefully retain cached weather if present.
+    } finally {
+      _weatherLoading[trip.tripId] = false;
+      notifyListeners();
+    }
+  }
+
+  /// Loads or initializes the editable packing checklist for a trip.
+  Future<void> loadPackingList(String tripId) async {
+    final existing = await _storage.loadPackingList(tripId);
+    final items = existing ?? PackingItemModel.defaultItems();
+    _packingByTrip[tripId] = items;
+    if (existing == null) {
+      await _storage.savePackingList(tripId, items);
+    }
+    notifyListeners();
+  }
+
+  Future<void> togglePackingItem(String tripId, String itemId) async {
+    final current = List<PackingItemModel>.from(
+      _packingByTrip[tripId] ?? PackingItemModel.defaultItems(),
+    );
+    final updated = current
+        .map(
+          (item) => item.id == itemId
+              ? item.copyWith(isPacked: !item.isPacked)
+              : item,
+        )
+        .toList();
+    _packingByTrip[tripId] = updated;
+    await _storage.savePackingList(tripId, updated);
+    notifyListeners();
+  }
+
+  Future<void> addPackingItem(
+    String tripId,
+    String title, {
+    String category = 'Essentials',
+  }) async {
+    final clean = title.trim();
+    if (clean.isEmpty) return;
+    final current = List<PackingItemModel>.from(
+      _packingByTrip[tripId] ?? PackingItemModel.defaultItems(),
+    );
+    current.add(
+      PackingItemModel(
+        id: 'pack_${DateTime.now().microsecondsSinceEpoch}',
+        title: clean,
+        category: category,
+      ),
+    );
+    _packingByTrip[tripId] = current;
+    await _storage.savePackingList(tripId, current);
+    notifyListeners();
+  }
+
+  Future<void> removePackingItem(String tripId, String itemId) async {
+    final current = List<PackingItemModel>.from(_packingByTrip[tripId] ?? []);
+    current.removeWhere((item) => item.id == itemId);
+    _packingByTrip[tripId] = current;
+    await _storage.savePackingList(tripId, current);
+    notifyListeners();
+  }
+
   void _mutateDayActivities(
     String tripId,
     int dayNumber,
@@ -186,6 +323,7 @@ class TripProvider extends ChangeNotifier {
       totalEstimatedCost: recalculatedTotal,
     );
     _upsertTrip(updatedTrip);
+    unawaited(_storage.saveTrip(updatedTrip));
     notifyListeners();
   }
 
@@ -223,6 +361,14 @@ class TripProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     _errorCode = null;
+    notifyListeners();
+  }
+
+  void clearInMemory() {
+    _trips.clear();
+    _weatherByTrip.clear();
+    _packingByTrip.clear();
+    _activeTrip = null;
     notifyListeners();
   }
 }

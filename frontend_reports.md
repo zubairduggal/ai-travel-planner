@@ -7,7 +7,7 @@
 | **FM1: Infrastructure & M3 Setup** | Completed | `flutter analyze`: 0 issues; `flutter test`: 7/7 passed | `9a7fcd0` | 2026-11-23 |
 | **FM2: Form & Backend API Integration** | Completed | `flutter analyze`: 0 issues; 17 unit/widget + 1 live E2E passed | `3833239` | 2026-11-23 |
 | **FM3: Maps & Slot Customization** | Completed | `flutter analyze`: 0 issues; `flutter test`: 22/22 passed | `5645f38` | 2026-11-23 |
-| **FM4: Offline Caching & Expense Tracker** | Pending | - | - | - |
+| **FM4: Offline Caching & Expense Tracker** | Completed | `flutter analyze`: 0 issues; `flutter test`: 28/28 passed | *(pending commit)* | 2026-11-23 |
 | **FM5: Firebase Auth & Store Release** | Pending | - | - | - |
 
 ---
@@ -80,5 +80,29 @@
   ```
 - **Notes / Observations:**
   - Ready for FM4 (Offline Caching with Hive CE, Multi-Currency Expense Tracker, Weather Card & Packing Checklist).
+
+---
+
+## Milestone FM4 Report
+- **Date:** 2026-11-23
+- **Features Completed:**
+  - Added pure-Dart `hive_ce: ^2.24.0` and `path_provider: ^2.1.6` to `frontend/pubspec.yaml` (deliberately avoided `hive_ce_flutter` 2.6.0 because its `native_toolchain_c` build hook fails on Windows without Visual Studio C++ tools; `Hive.init(dir.path)` on mobile/desktop + `Hive.init(null)` on Web provides identical local persistence with zero C++ toolchain requirement).
+  - `lib/services/storage_service.dart`: `StorageService` interface + `HiveStorageService` (and `InMemoryStorageService` for isolated tests) storing Trips, Expenses, Weather Forecasts, Packing Checklists, Exchange Rates, and Dark Mode preferences offline across app restarts, with cascade `deleteTrip` and full `purgeAllData()` (ready for FM5 account deletion).
+  - `lib/services/currency_service.dart`: Fetches live ECB rates via Frankfurter API (`https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR,PKR,AED,GBP`), caches rates in Hive, and falls back gracefully to bundled offline rates when disconnected.
+  - `lib/providers/expense_provider.dart`, `lib/screens/expense/expense_screen.dart`, `lib/screens/expense/add_expense_sheet.dart`, `lib/widgets/budget_progress_bar.dart`: Multi-currency expense logging, automatic conversion into the trip's base currency, category breakdown chips, and green/amber/red budget progress bar (`<75%`, `75–95%`, `>=95%`).
+  - `lib/models/weather_model.dart`, `lib/models/packing_item_model.dart`, `lib/widgets/weather_card.dart`, `lib/widgets/packing_checklist.dart`, `ApiService.getWeather`: Destination weather forecast powered by `/api/v1/weather` (cached offline per trip) and editable per-trip packing checklist with starter defaults, accessible from `ItineraryScreen` bottom sheet; `SavedTripsScreen` updated with `Offline Ready` badge and delete trip action.
+  - `lib/main.dart`, `lib/providers/trip_provider.dart`, `lib/providers/auth_provider.dart`: Wired startup Hive initialization, persisted ThemeMode, automatic offline saving/loading of trips, edits, weather, and checklists.
+  - `test/storage_and_expense_test.dart`: 6 new test suites verifying real `HiveStorageService` persistence across close/reopen (simulated app restart offline), cascade delete & `purgeAllData()`, `CurrencyService` live mock + offline fallback conversion, `BudgetProgressBar` thresholds, `ExpenseScreen` multi-currency UI flow, and `WeatherCard` + `PackingChecklist` widgets.
+- **Bugs Caught & Fixed During Verification:**
+  - Fixed a `RenderFlex` 21px horizontal overflow in `WeatherCard`'s compact daily forecast tile (widened card to `128px` and wrapped temperature text in `Expanded` with ellipsis).
+  - Fixed WMO snow weather-code icon precedence (`71–77`, `85–86` checked before rain `51–82`).
+- **Flutter Analyze & Test Output:**
+  ```text
+  Analyzing frontend...
+  No issues found!
+  00:14 +28 ~1: All tests passed!
+  ```
+- **Notes / Observations:**
+  - Ready for FM5 (Firebase Auth, Account Deletion & Local Data Purge, PDF/WhatsApp Export, Crashlytics, App Icons, and Flutter CI).
 
 ---
