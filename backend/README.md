@@ -6,7 +6,7 @@ Production-ready FastAPI backend for the AI-Powered Travel Planner Flutter app.
 
 ## Requirements
 - Python 3.11+ (or Docker)
-- A Google Gemini API key (for live itinerary generation)
+- An OpenRouter API key (for live itinerary generation)
 - Optional: Redis server for production distributed caching & rate limiting
 
 ## Local Setup (Windows PowerShell)
@@ -15,7 +15,7 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
-# Edit .env and set GEMINI_API_KEY=<your_key>
+# Edit .env and set OPENROUTER_API_KEY=<your_key>
 ```
 
 ## Run Locally
@@ -32,7 +32,7 @@ Copy-Item .env.example .env
 # Build multi-stage production image
 docker build -t ai-travel-planner-backend ./backend
 
-# Run container (passing .env for GEMINI_API_KEY, API_KEY, etc.)
+# Run container (passing .env for OPENROUTER_API_KEY, API_KEY, etc.)
 docker run --rm -p 8000:8000 --env-file ./backend/.env ai-travel-planner-backend
 ```
 
@@ -45,7 +45,7 @@ cd backend
 
 # Optional live API tests:
 $env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m pytest tests/test_geocoding.py -m live -v
-$env:RUN_LIVE_TESTS="1"; $env:GEMINI_API_KEY="your_key"; .\.venv\Scripts\python.exe -m pytest tests/test_itinerary_api.py -m live -v
+$env:RUN_LIVE_TESTS="1"; $env:OPENROUTER_API_KEY="your_key"; .\.venv\Scripts\python.exe -m pytest tests/test_openrouter.py -m live -v
 ```
 
 ## CI/CD
@@ -63,12 +63,12 @@ GitHub Actions ([.github/workflows/backend-ci.yml](../.github/workflows/backend-
 | `APP_ENV` | `development` | `development`, `staging`, or `production` |
 | `DEBUG` | `false` | FastAPI debug mode |
 | `API_V1_PREFIX` | `/api/v1` | Prefix for v1 routes |
-| `GEMINI_API_KEY` | *(unset)* | Google Gemini API key (required for `/generate` & `/regenerate-slot`) |
-| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Primary Gemini model ID |
-| `GEMINI_FALLBACK_MODEL` | `gemini-3.8-flash` | Automatic fallback model on 503 high demand |
-| `GEMINI_TIMEOUT_SECONDS` | `60` | Timeout per Gemini call (seconds) |
-| `GEMINI_TEMPERATURE` | `0.4` | Sampling temperature (`0`–`2`) |
-| `GEMINI_MAX_RETRIES` | `1` | Retries when Gemini returns malformed JSON |
+| `OPENROUTER_API_KEY` | *(unset)* | OpenRouter API key (required for `/generate` & `/regenerate-slot`) |
+| `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-super-vl:free` | OpenRouter model ID |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL (`https://` required) |
+| `OPENROUTER_TIMEOUT_SECONDS` | `60` | Timeout per OpenRouter call (seconds) |
+| `OPENROUTER_TEMPERATURE` | `0.4` | Sampling temperature (`0`–`2`) |
+| `OPENROUTER_MAX_RETRIES` | `1` | Retries when the AI returns malformed JSON |
 | `NOMINATIM_USER_AGENT` | `AITravelPlanner/1.0.0 (...)` | Required custom User-Agent for OpenStreetMap Nominatim |
 | `NOMINATIM_MIN_INTERVAL_SECONDS` | `1.05` | Enforces Nominatim <= 1 req/sec policy |
 | `GOOGLE_PLACES_API_KEY` | *(unset)* | Optional Google Places API (New) fallback |
