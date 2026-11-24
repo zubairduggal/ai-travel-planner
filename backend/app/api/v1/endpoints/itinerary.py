@@ -51,7 +51,7 @@ async def generate_itinerary(
     geocoder: GeocodingService = Depends(get_geocoding_service),
     cache: CacheService = Depends(get_cache_service),
 ) -> TripItineraryResponseSchema:
-    """Generate a cached, geocoded day-by-day itinerary with Google Gemini."""
+    """Generate a cached, geocoded day-by-day itinerary with OpenRouter."""
     cached = await cache.get_itinerary(trip)
     if cached is not None:
         response.headers["X-Cache"] = "HIT"

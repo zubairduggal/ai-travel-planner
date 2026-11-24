@@ -27,7 +27,7 @@ class AppError(Exception):
 
 
 class AINotConfiguredError(AppError):
-    """No Gemini API key is configured on the server."""
+    """No OpenRouter API key is configured on the server."""
 
     status_code = 503
     code = "AI_NOT_CONFIGURED"
@@ -35,7 +35,7 @@ class AINotConfiguredError(AppError):
 
 
 class AIAuthError(AppError):
-    """Gemini rejected the configured API key."""
+    """OpenRouter rejected the configured API key."""
 
     status_code = 503
     code = "AI_AUTH_FAILED"
@@ -43,7 +43,7 @@ class AIAuthError(AppError):
 
 
 class AIRateLimitError(AppError):
-    """Gemini quota / rate limit was exceeded (HTTP 429 from Gemini)."""
+    """OpenRouter quota / rate limit was exceeded (HTTP 402/429)."""
 
     status_code = 503
     code = "AI_RATE_LIMITED"
@@ -51,7 +51,7 @@ class AIRateLimitError(AppError):
 
 
 class AITimeoutError(AppError):
-    """Gemini did not answer within the configured timeout."""
+    """OpenRouter did not answer within the configured timeout."""
 
     status_code = 504
     code = "AI_TIMEOUT"
@@ -59,7 +59,7 @@ class AITimeoutError(AppError):
 
 
 class AIProviderError(AppError):
-    """Any other error returned by the Gemini API."""
+    """Any other error returned by the OpenRouter API."""
 
     status_code = 502
     code = "AI_PROVIDER_ERROR"
@@ -67,7 +67,7 @@ class AIProviderError(AppError):
 
 
 class AIResponseError(AppError):
-    """Gemini answered, but the output was not a valid itinerary."""
+    """OpenRouter answered, but the output was not a valid itinerary."""
 
     status_code = 502
     code = "AI_INVALID_RESPONSE"

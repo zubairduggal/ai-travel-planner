@@ -5,7 +5,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-# Hard bounds protect Gemini token spend and Nominatim geocoding latency.
+# Hard bounds protect LLM token spend and Nominatim geocoding latency.
 MAX_TRIP_DURATION_DAYS = 14
 MAX_INTERESTS_COUNT = 15
 MAX_INTEREST_LENGTH = 60

@@ -1,7 +1,7 @@
-"""Structured prompt templates for the Gemini itinerary generator.
+"""Structured prompt templates for the AI itinerary generator.
 
-The output *shape* is enforced by Gemini's structured-output mode
-(`response_schema`), so the prompt focuses on content quality: real places,
+The output *shape* is enforced by OpenRouter's structured-output mode
+(`response_format` JSON schema), so the prompt focuses on content quality: real places,
 realistic pacing, respecting the budget, and resisting prompt injection.
 """
 

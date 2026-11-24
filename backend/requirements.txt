@@ -6,9 +6,6 @@ pydantic-settings==2.16.3
 python-dotenv==1.2.4
 httpx==0.28.1
 
-# AI / LLM (M2)
-google-genai==3.6.1
-
 # Caching & Rate Limiting (M4)
 diskcache==5.6.3
 redis==8.2.0

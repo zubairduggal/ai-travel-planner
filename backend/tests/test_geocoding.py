@@ -3,7 +3,6 @@
 import json
 import os
 import time
-from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -398,13 +397,19 @@ async def test_itinerary_endpoint_integrates_geocoding(client):
         }
     )
 
-    class _Models:
-        async def generate_content(self, **kwargs):
-            return SimpleNamespace(text=llm_json)
-
+    ai_http = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                json={
+                    "choices": [{"message": {"role": "assistant", "content": llm_json}}]
+                },
+            )
+        )
+    )
     fake_ai = AIEngine(
-        settings=Settings(gemini_api_key="test"),
-        client=SimpleNamespace(aio=SimpleNamespace(models=_Models())),
+        settings=Settings(openrouter_api_key="test"),
+        http_client=ai_http,
     )
 
     def geo_handler(request: httpx.Request) -> httpx.Response:

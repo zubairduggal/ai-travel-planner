@@ -36,7 +36,7 @@ OPENAPI_TAGS = [
 
 APP_DESCRIPTION = (
     "FastAPI backend for the AI-Powered Travel Planner Flutter client. "
-    "Generates day-by-day itineraries using Google Gemini, verifies locations "
+    "Generates day-by-day itineraries using OpenRouter, verifies locations "
     "with OpenStreetMap Nominatim (and optional Google Places fallback), "
     "validates same-day travel feasibility using Haversine distances, and "
     "protects resources with DiskCache/Redis caching, SlowAPI rate limiting, "

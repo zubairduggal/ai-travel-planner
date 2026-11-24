@@ -1,9 +1,8 @@
-"""AI prompt builder & parser supporting Gemini (default) and optional OpenRouter.
+"""OpenRouter AI prompt builder & parser.
 
 Flow:
 1. Build the prompt from the trip (or slot regeneration) request.
-2. Ask the configured AI provider for JSON constrained to `LLMItinerary` or
-   `LLMActivity`.
+2. Ask OpenRouter for JSON constrained to `LLMItinerary` or `LLMActivity`.
 3. Validate the JSON with Pydantic; retry on malformed output.
 4. Add server-side fields (trip_id, activity_id, totals) and return validated
    response schemas.
@@ -17,9 +16,6 @@ from functools import lru_cache
 from typing import Any
 
 import httpx
-from google import genai
-from google.genai import errors as genai_errors
-from google.genai import types
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import Settings, get_settings
@@ -77,16 +73,8 @@ class LLMItinerary(BaseModel):
 # --- Helpers --------------------------------------------------------------
 
 
-def _is_auth_error(exc: genai_errors.APIError) -> bool:
-    """Gemini reports a bad key as 400 API_KEY_INVALID (or 401/403)."""
-    if exc.code in (401, 403):
-        return True
-    text = f"{getattr(exc, 'message', '')} {getattr(exc, 'details', '')}"
-    return exc.code == 400 and ("API_KEY_INVALID" in text or "API key" in text)
-
-
 def _enforce_strict_schema(node: Any) -> Any:
-    """Add `additionalProperties: false` to object schemas for OpenAI/OpenRouter."""
+    """Add `additionalProperties: false` to object schemas for OpenRouter."""
     if isinstance(node, dict):
         result = {k: _enforce_strict_schema(v) for k, v in node.items()}
         if result.get("type") == "object" and "properties" in result:
@@ -125,114 +113,18 @@ def _strip_code_fences(raw: str) -> str:
 
 
 class AIEngine:
-    """Generates itineraries and slot replacements via Gemini or OpenRouter."""
+    """Generates itineraries and slot replacements via OpenRouter."""
 
     def __init__(
         self,
         settings: Settings,
-        client: Any | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._settings = settings
         self._http_client = http_client
-        if client is not None:
-            self._client = client
-        elif settings.ai_provider == "gemini" and settings.gemini_api_key:
-            self._client = genai.Client(
-                api_key=settings.gemini_api_key,
-                # HttpOptions.timeout is in milliseconds; cap SDK retries so
-                # 503 demand spikes can fail over quickly to fallback model.
-                http_options=types.HttpOptions(
-                    timeout=int(settings.gemini_timeout_seconds * 1000),
-                    retry_options=types.HttpRetryOptions(attempts=2, max_delay=4.0),
-                ),
-            )
-        else:
-            self._client = None
 
     def _is_configured(self) -> bool:
-        if self._settings.ai_provider == "openrouter":
-            return bool(self._settings.openrouter_api_key)
-        return self._client is not None
-
-    def _config(
-        self,
-        *,
-        system_instruction: str = ITINERARY_SYSTEM_INSTRUCTION,
-        response_schema: type[BaseModel] = LLMItinerary,
-    ) -> types.GenerateContentConfig:
-        return types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=self._settings.gemini_temperature,
-            response_mime_type="application/json",
-            response_schema=response_schema,
-        )
-
-    async def _call_model(
-        self,
-        model: str,
-        prompt: str,
-        *,
-        config: types.GenerateContentConfig | None = None,
-    ) -> str:
-        """Call a specific Gemini model once and return raw response text."""
-        try:
-            response = await asyncio.wait_for(
-                self._client.aio.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=config or self._config(),
-                ),
-                timeout=self._settings.gemini_timeout_seconds,
-            )
-        except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
-            raise AITimeoutError() from exc
-        except genai_errors.APIError as exc:
-            logger.warning(
-                "Gemini API error model=%s code=%s status=%s",
-                model,
-                exc.code,
-                getattr(exc, "status", None),
-            )
-            if _is_auth_error(exc):
-                raise AIAuthError() from exc
-            if exc.code == 429:
-                raise AIRateLimitError() from exc
-            raise AIProviderError() from exc
-        except httpx.HTTPError as exc:
-            logger.warning("Gemini network error: %s", exc)
-            raise AIProviderError("Could not reach the AI service.") from exc
-
-        text = response.text
-        if not text:
-            # e.g. blocked by safety filters or empty candidate list.
-            raise AIResponseError("The AI service returned an empty response.")
-        return text
-
-    async def _call_gemini(
-        self,
-        prompt: str,
-        *,
-        config: types.GenerateContentConfig | None = None,
-    ) -> str:
-        """Call primary Gemini model, failing over to fallback on 503 demand spikes."""
-        primary = self._settings.gemini_model
-        fallback = self._settings.gemini_fallback_model
-        try:
-            return await self._call_model(primary, prompt, config=config)
-        except AIProviderError as exc:
-            cause = exc.__cause__
-            is_unavailable = isinstance(cause, genai_errors.APIError) and (
-                cause.code == 503
-            )
-            if is_unavailable and fallback and fallback != primary:
-                logger.warning(
-                    "Primary model %s returned 503; falling back to %s",
-                    primary,
-                    fallback,
-                )
-                return await self._call_model(fallback, prompt, config=config)
-            raise
+        return bool(self._settings.openrouter_api_key)
 
     async def _call_openrouter(
         self,
@@ -250,7 +142,7 @@ class AIEngine:
         }
         body: dict[str, Any] = {
             "model": self._settings.openrouter_model,
-            "temperature": self._settings.gemini_temperature,
+            "temperature": self._settings.openrouter_temperature,
             "messages": [
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": prompt},
@@ -326,25 +218,6 @@ class AIEngine:
             raise AIResponseError("The AI service returned an empty response.")
         return _strip_code_fences(content)
 
-    async def _call_provider(
-        self,
-        prompt: str,
-        *,
-        system_instruction: str = ITINERARY_SYSTEM_INSTRUCTION,
-        response_schema: type[BaseModel] = LLMItinerary,
-    ) -> str:
-        if self._settings.ai_provider == "openrouter":
-            return await self._call_openrouter(
-                prompt,
-                system_instruction=system_instruction,
-                response_schema=response_schema,
-            )
-        config = self._config(
-            system_instruction=system_instruction,
-            response_schema=response_schema,
-        )
-        return await self._call_gemini(prompt, config=config)
-
     @staticmethod
     def _parse(raw: str, trip: TripRequestSchema) -> LLMItinerary:
         """Validate AI JSON and check it matches the requested trip."""
@@ -406,11 +279,11 @@ class AIEngine:
             raise AINotConfiguredError()
 
         prompt = build_itinerary_prompt(trip)
-        attempts = 1 + self._settings.gemini_max_retries
+        attempts = 1 + self._settings.openrouter_max_retries
         last_error: AIResponseError | None = None
 
         for attempt in range(1, attempts + 1):
-            raw = await self._call_provider(
+            raw = await self._call_openrouter(
                 prompt,
                 system_instruction=ITINERARY_SYSTEM_INSTRUCTION,
                 response_schema=LLMItinerary,
@@ -419,8 +292,7 @@ class AIEngine:
                 itinerary = self._parse(raw, trip)
             except AIResponseError as exc:
                 logger.warning(
-                    "Invalid itinerary from %s (attempt %d/%d): %s",
-                    self._settings.ai_provider,
+                    "Invalid itinerary from OpenRouter (attempt %d/%d): %s",
                     attempt,
                     attempts,
                     exc.message,
@@ -439,11 +311,11 @@ class AIEngine:
             raise AINotConfiguredError()
 
         prompt = build_slot_regeneration_prompt(slot_req)
-        attempts = 1 + self._settings.gemini_max_retries
+        attempts = 1 + self._settings.openrouter_max_retries
         last_error: AIResponseError | None = None
 
         for attempt in range(1, attempts + 1):
-            raw = await self._call_provider(
+            raw = await self._call_openrouter(
                 prompt,
                 system_instruction=SLOT_SYSTEM_INSTRUCTION,
                 response_schema=LLMActivity,
@@ -452,8 +324,7 @@ class AIEngine:
                 llm_act = LLMActivity.model_validate_json(raw)
             except ValidationError as exc:
                 logger.warning(
-                    "Invalid slot activity from %s (attempt %d/%d): %s",
-                    self._settings.ai_provider,
+                    "Invalid slot activity from OpenRouter (attempt %d/%d): %s",
                     attempt,
                     attempts,
                     exc,

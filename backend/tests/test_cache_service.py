@@ -2,8 +2,8 @@
 
 import json
 import time
-from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from app.core.config import Settings
@@ -52,30 +52,38 @@ ONE_DAY_LLM_JSON = json.dumps(
 )
 
 
-class _CountingModels:
+class _CountingOpenRouter:
     def __init__(self, responses: list[str]) -> None:
         self._responses = list(responses)
         self.call_count = 0
         self.last_prompt: str | None = None
 
-    async def generate_content(self, *, model, contents, config):
+    def handler(self, request: httpx.Request) -> httpx.Response:
         self.call_count += 1
-        self.last_prompt = contents
+        sent = json.loads(request.content)
+        self.last_prompt = sent["messages"][1]["content"]
         text = (
             self._responses.pop(0) if len(self._responses) > 1 else self._responses[0]
         )
-        return SimpleNamespace(text=text)
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"role": "assistant", "content": text}}]},
+        )
 
 
-def _install_fake_ai(responses: list[str], *, max_retries: int = 1) -> _CountingModels:
-    models = _CountingModels(responses)
-    fake_client = SimpleNamespace(aio=SimpleNamespace(models=models))
+def _install_fake_ai(
+    responses: list[str], *, max_retries: int = 1
+) -> _CountingOpenRouter:
+    tracker = _CountingOpenRouter(responses)
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(tracker.handler))
     engine = AIEngine(
-        settings=Settings(gemini_api_key="test-key", gemini_max_retries=max_retries),
-        client=fake_client,
+        settings=Settings(
+            openrouter_api_key="test-key", openrouter_max_retries=max_retries
+        ),
+        http_client=http_client,
     )
     app.dependency_overrides[get_ai_engine] = lambda: engine
-    return models
+    return tracker
 
 
 # --- Cache key normalization & backends ------------------------------------
@@ -212,7 +220,7 @@ async def test_generate_itinerary_diskcache_hit_under_50ms(client, tmp_path):
     models = _install_fake_ai([ONE_DAY_LLM_JSON])
 
     try:
-        # 1st call -> MISS (invokes Gemini once)
+        # 1st call -> MISS (invokes AI provider once)
         first = await client.post("/api/v1/itinerary/generate", json=TRIP_PAYLOAD)
         assert first.status_code == 200
         assert first.headers["X-Cache"] == "MISS"

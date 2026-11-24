@@ -28,25 +28,15 @@ class Settings(BaseSettings):
     # Restrict origins in production (comma-separated or JSON array via env).
     cors_allow_origins: list[str] = Field(default_factory=lambda: ["*"])
 
-    # --- AI Provider Selection ---
-    ai_provider: Literal["gemini", "openrouter"] = "gemini"
-
-    # --- Gemini (M2) ---
-    gemini_api_key: str | None = None
-    # Fast, cost-efficient stable Flash model with automatic 503 failover.
-    gemini_model: str = "gemini-3.5-flash-lite"
-    gemini_fallback_model: str | None = "gemini-3.8-flash"
-    # Total time allowed for one Gemini call, in seconds.
-    gemini_timeout_seconds: float = Field(default=60.0, gt=0)
-    gemini_temperature: float = Field(default=0.4, ge=0, le=2)
-    # Extra attempts when Gemini returns malformed / invalid JSON.
-    gemini_max_retries: int = Field(default=1, ge=0, le=3)
-
-    # --- Optional OpenRouter Provider (testing / fallback) ---
+    # --- OpenRouter AI Provider ---
     openrouter_api_key: str | None = None
     openrouter_model: str = "nvidia/nemotron-3.5-super-vl:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Total time allowed for one AI call, in seconds.
     openrouter_timeout_seconds: float = Field(default=60.0, gt=0)
+    openrouter_temperature: float = Field(default=0.4, ge=0, le=2)
+    # Extra attempts when the AI returns malformed / invalid JSON.
+    openrouter_max_retries: int = Field(default=1, ge=0, le=3)
 
     # --- Geocoding & Distance Feasibility (M3) ---
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"

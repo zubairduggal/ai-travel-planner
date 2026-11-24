@@ -75,10 +75,9 @@ def _chat_completion_body(content: str) -> dict:
 
 def _openrouter_settings(**overrides) -> Settings:
     defaults = {
-        "ai_provider": "openrouter",
         "openrouter_api_key": "test-openrouter-secret-value",
         "openrouter_model": "nvidia/nemotron-3.5-super-vl:free",
-        "gemini_max_retries": 1,
+        "openrouter_max_retries": 1,
     }
     defaults.update(overrides)
     return Settings(**defaults)
@@ -175,7 +174,7 @@ async def test_openrouter_exhausted_malformed_json_and_empty_content(client):
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(bad_handler)) as http:
         engine = AIEngine(
-            settings=_openrouter_settings(gemini_max_retries=1), http_client=http
+            settings=_openrouter_settings(openrouter_max_retries=1), http_client=http
         )
         app.dependency_overrides[get_ai_engine] = lambda: engine
         res = await client.post("/api/v1/itinerary/generate", json=TRIP_PAYLOAD)
@@ -187,7 +186,7 @@ async def test_openrouter_exhausted_malformed_json_and_empty_content(client):
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(empty_handler)) as http:
         engine = AIEngine(
-            settings=_openrouter_settings(gemini_max_retries=0), http_client=http
+            settings=_openrouter_settings(openrouter_max_retries=0), http_client=http
         )
         app.dependency_overrides[get_ai_engine] = lambda: engine
         res_empty = await client.post("/api/v1/itinerary/generate", json=TRIP_PAYLOAD)
@@ -213,7 +212,7 @@ async def test_openrouter_http_error_mapping_and_no_secret_in_logs(
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         engine = AIEngine(
-            settings=_openrouter_settings(gemini_max_retries=0), http_client=http
+            settings=_openrouter_settings(openrouter_max_retries=0), http_client=http
         )
         app.dependency_overrides[get_ai_engine] = lambda: engine
         with caplog.at_level("WARNING"):
@@ -233,7 +232,7 @@ async def test_openrouter_timeout_and_network_errors(client):
         transport=httpx.MockTransport(timeout_handler)
     ) as http:
         engine = AIEngine(
-            settings=_openrouter_settings(gemini_max_retries=0), http_client=http
+            settings=_openrouter_settings(openrouter_max_retries=0), http_client=http
         )
         app.dependency_overrides[get_ai_engine] = lambda: engine
         res = await client.post("/api/v1/itinerary/generate", json=TRIP_PAYLOAD)
@@ -245,7 +244,7 @@ async def test_openrouter_timeout_and_network_errors(client):
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(net_handler)) as http:
         engine = AIEngine(
-            settings=_openrouter_settings(gemini_max_retries=0), http_client=http
+            settings=_openrouter_settings(openrouter_max_retries=0), http_client=http
         )
         app.dependency_overrides[get_ai_engine] = lambda: engine
         res_net = await client.post("/api/v1/itinerary/generate", json=TRIP_PAYLOAD)
@@ -254,19 +253,14 @@ async def test_openrouter_timeout_and_network_errors(client):
 
 
 async def test_openrouter_missing_key_and_https_url_validation(client):
-    engine = AIEngine(
-        settings=Settings(ai_provider="openrouter", openrouter_api_key=None)
-    )
+    engine = AIEngine(settings=Settings(openrouter_api_key=None))
     app.dependency_overrides[get_ai_engine] = lambda: engine
     res = await client.post("/api/v1/itinerary/generate", json=TRIP_PAYLOAD)
     assert res.status_code == 503
     assert res.json()["error"]["code"] == "AI_NOT_CONFIGURED"
 
     with pytest.raises(ValidationError):
-        Settings(
-            ai_provider="openrouter",
-            openrouter_base_url="http://insecure.example.com/v1",
-        )
+        Settings(openrouter_base_url="http://insecure.example.com/v1")
 
 
 # --- Optional live OpenRouter integration test ------------------------------
@@ -278,7 +272,7 @@ async def test_openrouter_missing_key_and_https_url_validation(client):
     reason="Set RUN_LIVE_TESTS=1 and OPENROUTER_API_KEY to run live OpenRouter tests.",
 )
 async def test_generate_itinerary_live_openrouter(client):
-    live_settings = Settings(ai_provider="openrouter")
+    live_settings = Settings()
     app.dependency_overrides[get_ai_engine] = lambda: AIEngine(settings=live_settings)
 
     started = time.perf_counter()
