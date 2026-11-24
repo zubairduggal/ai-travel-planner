@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_strings.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
+import '../auth/auth_screen.dart';
 import '../home/main_shell.dart';
 
 /// Entry onboarding screen supporting Guest Mode (MFR-01) and Sign In (FM5).
@@ -87,16 +88,13 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               CustomButton(
-                label: 'Sign In (Available in FM5)',
+                label: 'Sign In / Create Account',
                 icon: Icons.login_rounded,
                 isOutlined: true,
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Firebase Sign-In arrives in Milestone FM5. '
-                        'Tap Explore as Guest to get started!',
-                      ),
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AuthScreen(),
                     ),
                   );
                 },

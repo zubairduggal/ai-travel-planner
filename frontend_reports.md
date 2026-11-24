@@ -8,7 +8,7 @@
 | **FM2: Form & Backend API Integration** | Completed | `flutter analyze`: 0 issues; 17 unit/widget + 1 live E2E passed | `3833239` | 2026-11-23 |
 | **FM3: Maps & Slot Customization** | Completed | `flutter analyze`: 0 issues; `flutter test`: 22/22 passed | `5645f38` | 2026-11-23 |
 | **FM4: Offline Caching & Expense Tracker** | Completed | `flutter analyze`: 0 issues; `flutter test`: 28/28 passed | `740dfee` | 2026-11-23 |
-| **FM5: Firebase Auth & Store Release** | Pending | - | - | - |
+| **FM5: Firebase Auth & Store Release** | Completed | `flutter analyze`: 0 issues; `flutter test`: 38/38 passed | *(pending commit)* | 2026-11-24 |
 
 ---
 
@@ -104,5 +104,39 @@
   ```
 - **Notes / Observations:**
   - Ready for FM5 (Firebase Auth, Account Deletion & Local Data Purge, PDF/WhatsApp Export, Crashlytics, App Icons, and Flutter CI).
+
+---
+
+## Milestone FM5 Report
+- **Date:** 2026-11-24
+- **Features Completed:**
+  - Added FM5 dependencies in `frontend/pubspec.yaml`: `pdf: ^3.13.1`, `printing: ^5.15.1`, `share_plus: ^13.3.1`, `firebase_core: ^5.2.0`, `firebase_auth: ^7.1.0`, `google_sign_in: ^7.2.0`, `sign_in_with_apple: ^8.2.0`, `firebase_crashlytics: ^6.1.0`, and dev `flutter_launcher_icons: ^0.14.4`.
+  - `lib/services/auth_service.dart` & `lib/providers/auth_provider.dart` (`MFR-01`, `MFR-02`, `MFR-03`):
+    - Full `FirebaseAuthService` supporting Email/Password, Google Sign-In v7+ (`GoogleSignIn.instance.initialize` + `authenticate`), and Sign in with Apple (`AppleAuthProvider`).
+    - Graceful non-crashing fallback when `google-services.json` / `GoogleService-Info.plist` are not linked yet so Guest Mode, local previews, and tests always run cleanly.
+    - Store-compliant Account Deletion & Local Data Purge (`deleteAccountAndPurgeData` + `reauthenticateAndDeleteAccount`) handling `requires-recent-login` via provider-specific re-authentication (Password / Google / Apple) before calling `storage.purgeAllData()`.
+  - `lib/screens/auth/auth_screen.dart`, `lib/screens/onboarding/welcome_screen.dart`, `lib/screens/profile/profile_screen.dart`:
+    - Validated Sign In / Create Account screen with Email/Password, Google Sign-In, and platform-gated Sign in with Apple (shown on iOS/macOS per App Store Guideline 4.8).
+    - Upgraded Profile screen with provider status badge, offline trips counter, Guest-to-Account upgrade link, Sign Out, and prominent red **Delete Account & Purge Data** workflow with stateful `_PasswordReauthDialog` and in-memory `TripProvider`/`ExpenseProvider` reset.
+  - `lib/services/export_service.dart` & `lib/screens/itinerary/itinerary_screen.dart` (`MFR-12`):
+    - Offline multi-page A4 PDF generator (`buildItineraryPdfBytes`) with optional Unicode Noto Sans fonts and automatic offline Helvetica + ASCII-safe currency fallback (`PKR`, `USD`, `EUR`, `AED`, `GBP`), native PDF share/print (`Printing.sharePdf` / `Printing.layoutPdf`), and formatted WhatsApp/text summary via `SharePlus.instance.share(ShareParams(..., sharePositionOrigin: ...))`.
+  - `lib/main.dart`: Guarded `Firebase.initializeApp()` + Crashlytics error handlers (`FlutterError.onError` and `PlatformDispatcher.instance.onError`) when Firebase is initialized on mobile.
+  - App Icons, Android `minSdk` & CI/CD:
+    - Generated custom teal compass launcher icon (`frontend/assets/icons/app_icon.png`) and ran `dart run flutter_launcher_icons` to generate Android adaptive icons, iOS `AppIcon`, and Web icons.
+    - Enforced `minSdk = maxOf(flutter.minSdkVersion, 23)` in `frontend/android/app/build.gradle.kts` for Firebase Auth compatibility.
+    - Created `.github/workflows/frontend-ci.yml` running `flutter analyze`, `flutter test -r expanded`, and `flutter build apk --debug` on `ubuntu-latest`.
+  - `test/auth_and_export_test.dart`: 10 new unit & widget tests verifying offline PDF `%PDF-` byte generation (including `PKR`/Unicode safety), WhatsApp text summary formatting, Guest → Email → Google → Apple → Sign Out transitions, unconfigured Firebase safety, full `requires-recent-login` password re-authentication + local data purge UI flow, and `ItineraryScreen` Export & Share sheet.
+- **Bugs Caught & Fixed During Verification:**
+  - Caught and fixed a premature `TextEditingController.dispose()` crash during `AlertDialog` exit animation in `ProfileScreen`'s password re-authentication dialog by extracting a stateful `_PasswordReauthDialog` widget.
+- **Flutter Analyze & Test Output:**
+  ```text
+  Analyzing frontend...
+  No issues found!
+  00:14 +38 ~1: All tests passed!
+  ```
+- **Release Readiness Notes:**
+  - All 5 Frontend Milestones (FM1–FM5) are complete and verified.
+  - To enable live Firebase Auth & Crashlytics on production Android/iOS builds, add your Firebase project's `google-services.json` (`frontend/android/app/`) and `GoogleService-Info.plist` (`frontend/ios/Runner/`), or run `flutterfire configure`.
+  - Tagged release `v2.0.0`.
 
 ---

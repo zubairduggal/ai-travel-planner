@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/activity_model.dart';
 import '../../models/day_plan_model.dart';
+import '../../models/expense_model.dart';
 import '../../models/trip_model.dart';
+import '../../providers/expense_provider.dart';
 import '../../providers/trip_provider.dart';
+import '../../services/export_service.dart';
 import '../../widgets/activity_card.dart';
 import '../../widgets/packing_checklist.dart';
 import '../../widgets/weather_card.dart';
@@ -108,6 +111,126 @@ class _ItineraryScreenState extends State<ItineraryScreen>
     );
   }
 
+  Rect _shareOrigin(BuildContext ctx) {
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      return box.localToGlobal(Offset.zero) & box.size;
+    }
+    return const Rect.fromLTWH(0, 0, 100, 100);
+  }
+
+  void _openExportSheet(TripModel currentTrip) {
+    final origin = _shareOrigin(context);
+    ExportService exportService;
+    try {
+      exportService = context.read<ExportService>();
+    } catch (_) {
+      exportService = const ExportService();
+    }
+    final tripProvider = context.read<TripProvider>();
+    final expenses = () {
+      try {
+        return context.read<ExpenseProvider>().expensesForTrip(
+              currentTrip.tripId,
+            );
+      } catch (_) {
+        return const <ExpenseModel>[];
+      }
+    }();
+    final packingList = tripProvider.packingListForTrip(currentTrip.tripId);
+
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Export & Share Itinerary',
+                style: Theme.of(sheetCtx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf_outlined),
+                title: const Text('Share Offline PDF'),
+                subtitle: const Text('Multi-page PDF with schedule & notes'),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  try {
+                    await exportService.sharePdfItinerary(
+                      currentTrip,
+                      sharePositionOrigin: origin,
+                      expenses: expenses,
+                      packingList: packingList,
+                    );
+                  } catch (_) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Could not export PDF on this device.'),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.print_outlined),
+                title: const Text('Print / Save PDF'),
+                subtitle: const Text('Open native print preview'),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  try {
+                    await exportService.printPdfItinerary(
+                      currentTrip,
+                      expenses: expenses,
+                      packingList: packingList,
+                    );
+                  } catch (_) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Print preview is unavailable here.'),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share_outlined),
+                title: const Text('Share Text Summary (WhatsApp)'),
+                subtitle: const Text('Formatted day-by-day text itinerary'),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  try {
+                    await exportService.shareTextSummary(
+                      currentTrip,
+                      sharePositionOrigin: origin,
+                      expenses: expenses,
+                      packingList: packingList,
+                    );
+                  } catch (_) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Could not open the share sheet.'),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openSlotEditor(
     TripModel currentTrip,
     int dayNumber,
@@ -160,6 +283,11 @@ class _ItineraryScreenState extends State<ItineraryScreen>
             icon: const Icon(Icons.backpack_outlined),
             tooltip: 'Weather & Packing',
             onPressed: () => _openUtilitiesSheet(currentTrip),
+          ),
+          IconButton(
+            icon: const Icon(Icons.ios_share_rounded),
+            tooltip: 'Export & Share',
+            onPressed: () => _openExportSheet(currentTrip),
           ),
         ],
         bottom: TabBar(
