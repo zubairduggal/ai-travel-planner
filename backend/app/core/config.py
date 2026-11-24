@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Restrict origins in production (comma-separated or JSON array via env).
     cors_allow_origins: list[str] = Field(default_factory=lambda: ["*"])
 
+    # --- AI Provider Selection ---
+    ai_provider: Literal["gemini", "openrouter"] = "gemini"
+
     # --- Gemini (M2) ---
     gemini_api_key: str | None = None
     # Fast, cost-efficient stable Flash model with automatic 503 failover.
@@ -38,6 +41,12 @@ class Settings(BaseSettings):
     gemini_temperature: float = Field(default=0.4, ge=0, le=2)
     # Extra attempts when Gemini returns malformed / invalid JSON.
     gemini_max_retries: int = Field(default=1, ge=0, le=3)
+
+    # --- Optional OpenRouter Provider (testing / fallback) ---
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "nvidia/nemotron-3.5-super-vl:free"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_timeout_seconds: float = Field(default=60.0, gt=0)
 
     # --- Geocoding & Distance Feasibility (M3) ---
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"
@@ -73,7 +82,7 @@ class Settings(BaseSettings):
     # Optional API key for X-API-Key header auth (strongly recommended in prod).
     api_key: str | None = None
 
-    @field_validator("nominatim_base_url", "weather_base_url")
+    @field_validator("nominatim_base_url", "weather_base_url", "openrouter_base_url")
     @classmethod
     def upstream_urls_must_use_https(cls, value: str) -> str:
         allowed = (
