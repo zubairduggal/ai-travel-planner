@@ -38,14 +38,26 @@ class CustomButton extends StatelessWidget {
           );
 
     if (isOutlined) {
-      return OutlinedButton(
-        onPressed: isLoading ? null : onPressed,
-        child: child,
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(50),
+          ),
+          onPressed: isLoading ? null : onPressed,
+          child: child,
+        ),
       );
     }
-    return FilledButton(
-      onPressed: isLoading ? null : onPressed,
-      child: child,
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(50),
+        ),
+        onPressed: isLoading ? null : onPressed,
+        child: child,
+      ),
     );
   }
 }

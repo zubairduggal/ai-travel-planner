@@ -80,7 +80,16 @@ def _install_fake_ai(
 # --- Rate limiting (5 requests/day -> 6th returns 429) ---------------------
 
 
-async def test_rate_limit_enforces_5_per_day_and_blocks_header_spoofing(client):
+async def test_rate_limit_enforces_5_per_day_and_blocks_header_spoofing(
+    client, monkeypatch
+):
+    from app.core import security
+
+    monkeypatch.setattr(
+        security,
+        "get_settings",
+        lambda: Settings(_env_file=None, rate_limit_itinerary="5/day"),
+    )
     _install_fake_ai([ONE_DAY_LLM_JSON])
 
     # First 5 requests succeed.
@@ -122,7 +131,11 @@ async def test_trusted_proxy_headers_validate_ip_address(client, monkeypatch):
     monkeypatch.setattr(
         security,
         "get_settings",
-        lambda: Settings(trust_proxy_headers=True),
+        lambda: Settings(
+            _env_file=None,
+            trust_proxy_headers=True,
+            rate_limit_itinerary="5/day",
+        ),
     )
     _install_fake_ai([ONE_DAY_LLM_JSON])
 

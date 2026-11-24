@@ -261,6 +261,8 @@ class _MapScreenState extends State<MapScreen> {
                                   const SizedBox(height: 2),
                                   Text(
                                     _selectedActivity!.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.titleMedium?.copyWith(
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -269,6 +271,8 @@ class _MapScreenState extends State<MapScreen> {
                                   Text(
                                     '${_selectedActivity!.category} • '
                                     '${AppFormatters.formatCurrency(_selectedActivity!.estimatedCost, widget.trip.currency)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: colors.onSurfaceVariant,
                                     ),
@@ -276,11 +280,18 @@ class _MapScreenState extends State<MapScreen> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: 12),
                             FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 44),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                              ),
                               onPressed: () =>
                                   _navigateToActivity(_selectedActivity!),
-                              icon: const Icon(Icons.directions_rounded),
+                              icon: const Icon(Icons.directions_rounded, size: 18),
                               label: const Text('Navigate'),
                             ),
                           ],
