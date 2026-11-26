@@ -18,6 +18,12 @@ htmlcov/
 # Flutter / Dart build artifacts
 frontend/build/
 frontend/.dart_tool/
+frontend/macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Local verification screenshots & scratch scripts
+ui_redesign_screenshots/
+comparison_feature_screenshots/
+run_phase4_e2e.py
 
 # IDE & OS
 .vscode/
