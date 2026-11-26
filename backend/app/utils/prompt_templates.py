@@ -134,22 +134,31 @@ def _format_verified_places_block(poi_bundle: DestinationPOIBundle | None) -> st
     )
 
 
+def _escape_untrusted(value: str) -> str:
+    """Neutralize angle-bracket XML delimiters inside untrusted user text."""
+    return value.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def build_itinerary_prompt(
     trip: TripRequestSchema,
     poi_bundle: DestinationPOIBundle | None = None,
 ) -> str:
     """Fill the user prompt with trip request values and optional verified POIs."""
     return ITINERARY_USER_PROMPT.format(
-        destination=trip.destination,
+        destination=_escape_untrusted(trip.destination),
         start_date=trip.start_date.isoformat(),
         end_date=trip.end_date.isoformat(),
         duration_days=trip.duration_days,
         budget=f"{trip.budget:g}",
         currency=trip.currency,
-        interests=", ".join(trip.interests),
-        travel_style=trip.travel_style,
+        interests=", ".join(_escape_untrusted(i) for i in trip.interests),
+        travel_style=_escape_untrusted(trip.travel_style),
         travel_mode=trip.travel_mode,
-        departure_city=trip.departure_city or "Not specified",
+        departure_city=(
+            _escape_untrusted(trip.departure_city)
+            if trip.departure_city
+            else "Not specified"
+        ),
         verified_places_block=_format_verified_places_block(poi_bundle),
     )
 
@@ -157,18 +166,20 @@ def build_itinerary_prompt(
 def build_slot_regeneration_prompt(slot_req: RegenerateSlotRequestSchema) -> str:
     """Fill the single-slot replacement prompt."""
     existing = (
-        ", ".join(slot_req.existing_activity_titles)
+        ", ".join(_escape_untrusted(t) for t in slot_req.existing_activity_titles)
         if slot_req.existing_activity_titles
         else "None"
     )
     return SLOT_USER_PROMPT.format(
-        destination=slot_req.destination,
+        destination=_escape_untrusted(slot_req.destination),
         day_number=slot_req.day_number,
-        time_slot=slot_req.time_slot,
+        time_slot=_escape_untrusted(slot_req.time_slot),
         budget_remaining=f"{slot_req.budget_remaining:g}",
         currency=slot_req.currency,
-        interests=", ".join(slot_req.interests),
-        travel_style=slot_req.travel_style,
+        interests=", ".join(_escape_untrusted(i) for i in slot_req.interests),
+        travel_style=_escape_untrusted(slot_req.travel_style),
         existing_activities=existing,
-        user_note=slot_req.user_note or "None",
+        user_note=(
+            _escape_untrusted(slot_req.user_note) if slot_req.user_note else "None"
+        ),
     )
