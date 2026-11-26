@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/glass_container.dart';
 import '../home/main_shell.dart';
 
 /// Email/Password, Google Sign-In (v7+), and Sign in with Apple screen (MFR-02).
@@ -92,13 +93,20 @@ class _AuthScreenState extends State<AuthScreen> {
     final colors = theme.colorScheme;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(_isRegisterMode ? 'Create Account' : 'Sign In'),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
+      body: GlassScaffoldBackground(
+        child: SafeArea(
+          child: GlassContentConstraint(
+            maxWidth: 480,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: GlassContainer(
+                borderRadius: 26,
+                padding: const EdgeInsets.all(20),
+                child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -266,7 +274,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           context.read<AuthProvider>().enterAsGuest();
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute<void>(
-                              builder: (_) => const MainShell(initialIndex: 1),
+                              builder: (_) => const MainShell(initialIndex: 0),
                             ),
                             (_) => false,
                           );
@@ -277,6 +285,9 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
+      ),
+      ),
+      ),
       ),
     );
   }

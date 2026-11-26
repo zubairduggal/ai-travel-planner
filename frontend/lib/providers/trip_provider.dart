@@ -140,6 +140,44 @@ class TripProvider extends ChangeNotifier {
     });
   }
 
+  /// Selects a single hotel option for the trip, persists immediately to local
+  /// Hive CE storage, and notifies listeners so live budget meters recalculate.
+  void selectHotelOption(String tripId, String optionId) {
+    final existing = _findTrip(tripId);
+    if (existing == null || existing.hotelOptions.isEmpty) return;
+    final hasMatch = existing.hotelOptions.any((h) => h.optionId == optionId);
+    if (!hasMatch) return;
+
+    final updatedHotels = existing.hotelOptions
+        .map((h) => h.copyWith(selected: h.optionId == optionId))
+        .toList();
+    final updatedTrip = existing.copyWith(hotelOptions: updatedHotels);
+    _upsertTrip(updatedTrip);
+    unawaited(_storage.saveTrip(updatedTrip));
+    notifyListeners();
+  }
+
+  /// Toggles inclusion of a dining option (multi-select), persists immediately
+  /// to local Hive CE storage, and notifies listeners for live budget updates.
+  void toggleDiningOption(String tripId, String optionId) {
+    final existing = _findTrip(tripId);
+    if (existing == null || existing.diningOptions.isEmpty) return;
+    final hasMatch = existing.diningOptions.any((d) => d.optionId == optionId);
+    if (!hasMatch) return;
+
+    final updatedDining = existing.diningOptions
+        .map(
+          (d) => d.optionId == optionId
+              ? d.copyWith(selected: !d.selected)
+              : d,
+        )
+        .toList();
+    final updatedTrip = existing.copyWith(diningOptions: updatedDining);
+    _upsertTrip(updatedTrip);
+    unawaited(_storage.saveTrip(updatedTrip));
+    notifyListeners();
+  }
+
   /// Calls backend `/api/v1/itinerary/regenerate-slot` and swaps the activity.
   Future<ActivityModel?> regenerateActivitySlot({
     required TripModel trip,

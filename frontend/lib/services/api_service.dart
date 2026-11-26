@@ -90,12 +90,19 @@ class ApiService {
           message: 'Server returned an empty itinerary response.',
         );
       }
-      final parsed = TripModel.fromJson(data).copyWith(
+      final fromServer = TripModel.fromJson(data);
+      final trimmedDeparture = request.departureCity?.trim();
+      final parsed = fromServer.copyWith(
         startDate: request.startDate,
         endDate: request.endDate,
         targetBudget: request.budget,
         travelStyle: request.travelStyle,
         interests: request.interests,
+        travelMode: data['travel_mode'] as String? ?? request.travelMode,
+        departureCity:
+            (trimmedDeparture != null && trimmedDeparture.isNotEmpty)
+                ? trimmedDeparture
+                : fromServer.departureCity,
         createdAt: DateTime.now().toUtc(),
       );
       final cacheHeader = response.headers.value('x-cache');

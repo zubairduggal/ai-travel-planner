@@ -1,13 +1,15 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/trip_model.dart';
 import '../../providers/expense_provider.dart';
 import '../../widgets/budget_progress_bar.dart';
+import '../../widgets/glass_container.dart';
 import 'add_expense_sheet.dart';
 
-/// Multi-currency expense tracker dashboard for a trip (MFR-11, FM4).
+/// Multi-currency Coral-Orange Glassmorphism expense tracker dashboard (MFR-11, FM4).
 class ExpenseScreen extends StatefulWidget {
   const ExpenseScreen({
     super.key,
@@ -35,6 +37,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: Colors.transparent,
       builder: (_) => AddExpenseSheet(trip: widget.trip),
     );
   }
@@ -45,138 +48,178 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final expenses = provider.expensesForTrip(widget.trip.tripId);
     final totalSpent = provider.totalSpentForTrip(widget.trip);
     final categoryTotals = provider.categoryTotalsForTrip(widget.trip);
+    final rateLabel = provider.currencyService.rateSourceLabel(
+      tripCurrency: widget.trip.currency,
+      expenseCurrencies: expenses.map((e) => e.currency),
+    );
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text('${widget.trip.destination} Expenses'),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: AppTheme.coralPrimary,
+        foregroundColor: Colors.white,
         onPressed: _openAddExpense,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add Expense'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-        children: [
-          BudgetProgressBar(
-            spent: totalSpent,
-            budget: widget.trip.effectiveBudget,
-            currency: widget.trip.currency,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            provider.currencyService.usingLiveRates
-                ? 'Exchange rates: Live (Frankfurter ECB)'
-                : 'Exchange rates: Offline cached / fallback rates',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-          if (categoryTotals.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'By Category',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: categoryTotals.entries.map((entry) {
-                return Chip(
-                  label: Text(
-                    '${entry.key}: ${AppFormatters.formatCurrency(entry.value, widget.trip.currency)}',
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Text(
-            'Logged Expenses (${expenses.length})',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (expenses.isEmpty)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.receipt_long_outlined,
-                      size: 44,
-                      color: colors.onSurfaceVariant,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No expenses logged yet',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Tap "Add Expense" to log spending in any currency.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+      body: GlassScaffoldBackground(
+        child: SafeArea(
+          child: GlassContentConstraint(
+            maxWidth: 620,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 92),
+              children: [
+                BudgetProgressBar(
+                  spent: totalSpent,
+                  budget: widget.trip.effectiveBudget,
+                  currency: widget.trip.currency,
                 ),
-              ),
-            )
-          else
-            for (final expense in expenses)
-              Card(
-                child: ListTile(
-                  title: Text(
-                    expense.title,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                const SizedBox(height: 8),
+                Text(
+                  rateLabel,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
-                  subtitle: Text(
-                    '${expense.category} • ${AppFormatters.toReadableDate(expense.date)}'
-                    '${expense.currency != widget.trip.currency ? " • Original: ${AppFormatters.formatCurrency(expense.amount, expense.currency)}" : ""}',
+                ),
+                if (categoryTotals.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'By Category',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        AppFormatters.formatCurrency(
-                          provider.convertToTripCurrency(
-                            expense,
-                            widget.trip.currency,
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: categoryTotals.entries.map((entry) {
+                      return Chip(
+                        label: Text(
+                          '${entry.key}: ${AppFormatters.formatCurrency(entry.value, widget.trip.currency)}',
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  'Logged Expenses (${expenses.length})',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (expenses.isEmpty)
+                  GlassContainer(
+                    borderRadius: 22,
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 44,
+                          color: colors.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No expenses logged yet',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
-                          widget.trip.currency,
                         ),
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w700,
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tap "Add Expense" to log spending in any currency.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
                         ),
+                      ],
+                    ),
+                  )
+                else
+                  for (final expense in expenses)
+                    GlassContainer(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      borderRadius: 20,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
                       ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_outline_rounded,
-                          color: colors.error,
-                          size: 20,
-                        ),
-                        tooltip: 'Delete expense',
-                        onPressed: () => provider.deleteExpense(
-                          widget.trip.tripId,
-                          expense.expenseId,
-                        ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  expense.title,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${expense.category} • ${AppFormatters.toReadableDate(expense.date)}'
+                                  '${expense.currency != widget.trip.currency ? " • Original: ${AppFormatters.formatCurrency(expense.amount, expense.currency)}" : ""}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
+                                if (expense.currency != widget.trip.currency &&
+                                    !provider.currencyService
+                                        .isCurrencyLive(expense.currency)) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Estimated rate (Offline fallback)',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: AppTheme.warmGold,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Text(
+                            AppFormatters.formatCurrency(
+                              provider.convertToTripCurrency(
+                                expense,
+                                widget.trip.currency,
+                              ),
+                              widget.trip.currency,
+                            ),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: AppTheme.coralPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline_rounded,
+                              color: colors.error,
+                              size: 20,
+                            ),
+                            tooltip: 'Delete expense',
+                            onPressed: () => provider.deleteExpense(
+                              widget.trip.tripId,
+                              expense.expenseId,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-        ],
+                    ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

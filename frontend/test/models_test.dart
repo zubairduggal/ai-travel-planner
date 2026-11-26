@@ -146,21 +146,27 @@ void main() {
   });
 
   group('FM1 UI Shell & Reusable Widgets', () {
-    testWidgets('Guest Mode onboarding navigates into 3-tab bottom shell', (
+    testWidgets('Guest Mode onboarding navigates into 4-tab floating glass shell', (
       tester,
     ) async {
       await tester.pumpWidget(const AITravelPlannerApp());
 
       expect(find.text('AI Travel Planner'), findsOneWidget);
+      expect(
+        find.text('One app for all your travel planning needs'),
+        findsOneWidget,
+      );
       expect(find.text('Explore as Guest'), findsOneWidget);
 
       await tester.tap(find.text('Explore as Guest'));
       await tester.pumpAndSettle();
 
-      // Opens on Create Trip tab with all 3 NavigationBar destinations visible.
+      // Opens on Home Explore tab with all 4 bottom nav items + center '+' FAB.
+      expect(find.text('Home'), findsOneWidget);
       expect(find.text('My Trips'), findsOneWidget);
-      expect(find.text('Create Trip'), findsWidgets);
+      expect(find.text('Map'), findsOneWidget);
       expect(find.text('Profile'), findsOneWidget);
+      expect(find.byTooltip('Create Trip'), findsOneWidget);
 
       // Switch to Profile tab and toggle Dark Mode.
       await tester.tap(find.text('Profile'));

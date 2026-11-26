@@ -26,7 +26,7 @@ class ExpenseModel {
       tripId: json['trip_id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      currency: (json['currency'] as String? ?? 'USD').toUpperCase(),
+      currency: (json['currency'] as String? ?? 'PKR').toUpperCase(),
       category: json['category'] as String? ?? 'Other',
       date: DateTime.tryParse(json['date'] as String? ?? '') ?? DateTime.now(),
       notes: json['notes'] as String?,

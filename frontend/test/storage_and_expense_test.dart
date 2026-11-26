@@ -214,6 +214,46 @@ void main() {
       );
       expect(converted, 1.0);
     });
+
+    test('distinguishes live Frankfurter ECB currencies (EUR/GBP) from fallback (PKR/AED)', () async {
+      final dio = Dio();
+      dio.httpClientAdapter = _StubAdapter((options) {
+        return ResponseBody.fromString(
+          jsonEncode({
+            'base': 'USD',
+            'date': '2026-11-25',
+            'rates': {'EUR': 0.91, 'GBP': 0.76},
+          }),
+          200,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+      });
+
+      final currency = CurrencyService(dio: dio);
+      await currency.refreshRates();
+
+      expect(currency.usingLiveRates, isTrue);
+      expect(currency.isCurrencyLive('EUR'), isTrue);
+      expect(currency.isCurrencyLive('GBP'), isTrue);
+      expect(currency.isCurrencyLive('PKR'), isFalse);
+      expect(currency.isCurrencyLive('AED'), isFalse);
+      expect(
+        currency.rateSourceLabel(
+          tripCurrency: 'USD',
+          expenseCurrencies: const ['PKR'],
+        ),
+        contains('Estimated rate (Offline fallback)'),
+      );
+      expect(
+        currency.rateSourceLabel(
+          tripCurrency: 'USD',
+          expenseCurrencies: const ['EUR'],
+        ),
+        'Exchange rates: Live (Frankfurter ECB)',
+      );
+    });
   });
 
   group('FM4 UI Widgets (ExpenseScreen, BudgetProgressBar, WeatherCard, PackingChecklist)', () {

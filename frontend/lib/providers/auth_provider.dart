@@ -44,7 +44,7 @@ class AuthProvider extends ChangeNotifier {
   String? _userEmail;
   String? _displayName;
   String? _errorMessage;
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.light;
 
   bool get isGuest => _isGuest;
   bool get isAuthenticated => _isAuthenticated;

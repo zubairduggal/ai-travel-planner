@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../models/trip_model.dart';
 import '../../providers/trip_provider.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/glass_container.dart';
 import '../../widgets/loading_indicator.dart';
 import 'itinerary_screen.dart';
 
@@ -25,7 +26,7 @@ class LoadingScreen extends StatefulWidget {
 class _LoadingScreenState extends State<LoadingScreen> {
   static const List<String> _statusMessages = [
     'Analyzing your travel preferences...',
-    'Crafting your day-by-day itinerary with Gemini AI...',
+    'Crafting your day-by-day itinerary with AI...',
     'Verifying real-world GPS coordinates...',
     'Checking daily travel route distances...',
   ];
@@ -84,49 +85,64 @@ class _LoadingScreenState extends State<LoadingScreen> {
         }
       },
       child: Scaffold(
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
           title: Text('Planning ${widget.request.destination}'),
         ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: provider.errorMessage != null
-                ? _ErrorView(
-                    message: provider.errorMessage!,
-                    onRetry: () {
-                      _startTicker();
-                      _runGeneration();
-                    },
-                    onBack: () => Navigator.of(context).pop(),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Spacer(),
-                      LoadingIndicator(
-                        message: _statusMessages[_messageIndex],
-                        subtitle:
-                            '${widget.request.durationDays}-day ${widget.request.travelStyle} trip '
-                            'to ${widget.request.destination}',
-                      ),
-                      const SizedBox(height: 16),
-                      LinearProgressIndicator(
-                        borderRadius: BorderRadius.circular(8),
-                        backgroundColor: colors.surfaceContainerHighest,
-                      ),
-                      const Spacer(),
-                      CustomButton(
-                        label: 'Cancel',
-                        isOutlined: true,
-                        icon: Icons.close_rounded,
-                        onPressed: () {
-                          provider.cancelGeneration();
-                          Navigator.of(context).pop();
+        body: GlassScaffoldBackground(
+          child: SafeArea(
+            child: GlassContentConstraint(
+              maxWidth: 500,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: provider.errorMessage != null
+                    ? _ErrorView(
+                        message: provider.errorMessage!,
+                        onRetry: () {
+                          _startTicker();
+                          _runGeneration();
                         },
+                        onBack: () => Navigator.of(context).pop(),
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Spacer(),
+                          GlassContainer(
+                            borderRadius: 26,
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              children: [
+                                LoadingIndicator(
+                                  message: _statusMessages[_messageIndex],
+                                  subtitle:
+                                      '${widget.request.durationDays}-day ${widget.request.travelStyle} trip '
+                                      'to ${widget.request.destination}',
+                                ),
+                                const SizedBox(height: 16),
+                                LinearProgressIndicator(
+                                  borderRadius: BorderRadius.circular(8),
+                                  backgroundColor:
+                                      colors.surfaceContainerHighest,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          CustomButton(
+                            label: 'Cancel',
+                            isOutlined: true,
+                            icon: Icons.close_rounded,
+                            onPressed: () {
+                              provider.cancelGeneration();
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+              ),
+            ),
           ),
         ),
       ),

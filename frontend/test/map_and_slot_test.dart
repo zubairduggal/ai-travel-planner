@@ -1,14 +1,19 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:ai_travel_planner/core/theme/app_theme.dart';
+import 'package:ai_travel_planner/core/utils/formatters.dart';
 import 'package:ai_travel_planner/core/utils/map_launcher.dart';
 import 'package:ai_travel_planner/models/activity_model.dart';
 import 'package:ai_travel_planner/models/day_plan_model.dart';
+import 'package:ai_travel_planner/models/place_option_model.dart';
+import 'package:ai_travel_planner/models/transport_summary_model.dart';
 import 'package:ai_travel_planner/models/trip_model.dart';
 import 'package:ai_travel_planner/providers/trip_provider.dart';
 import 'package:ai_travel_planner/screens/itinerary/itinerary_screen.dart';
 import 'package:ai_travel_planner/screens/map/map_screen.dart';
 import 'package:ai_travel_planner/services/api_service.dart';
+import 'package:ai_travel_planner/services/storage_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -251,6 +256,36 @@ void main() {
     );
 
     testWidgets(
+      'MapScreen with no trips renders 0 markers and shows Create a Trip empty-state card',
+      (tester) async {
+        var createTripTapped = false;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MapScreen(
+              isTab: true,
+              showTileLayer: false,
+              onStartTrip: ({String? destination, double? budget}) {
+                createTripTapped = true;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final markerLayer =
+            tester.widget<MarkerLayer>(find.byType(MarkerLayer));
+        expect(markerLayer.markers, isEmpty);
+        expect(find.text('No Trip Pins Yet'), findsOneWidget);
+        expect(find.text('Create a Trip'), findsOneWidget);
+
+        await tester.tap(find.text('Create a Trip'));
+        await tester.pumpAndSettle();
+        expect(createTripTapped, isTrue);
+      },
+    );
+
+    testWidgets(
       'ItineraryScreen opens SlotEditorSheet for notes, AI regenerate, and delete',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
@@ -312,6 +347,246 @@ void main() {
         await tester.tap(find.text('Delete Activity'));
         await tester.pumpAndSettle();
         expect(find.text('Duikar Sunrise Point'), findsNothing);
+      },
+    );
+  });
+
+  group('Phase 4 Map Price-Tag Pins & Interactive Comparison', () {
+    TripModel buildRichLahoreTrip() {
+      return const TripModel(
+        tripId: 'trip_map_phase4',
+        destination: 'Lahore, Pakistan',
+        durationDays: 2,
+        totalEstimatedCost: 4000,
+        currency: 'PKR',
+        targetBudget: 50000,
+        travelStyle: 'Moderate',
+        travelMode: 'road',
+        departureCity: 'Islamabad',
+        transportSummary: TransportSummaryModel(
+          mode: 'road',
+          estimatedCost: 8000,
+        ),
+        hotelOptions: [
+          PlaceOptionModel(
+            optionId: 'h_budget',
+            name: 'Hotel One Gulberg',
+            tier: 'budget',
+            estimatedPrice: 12000,
+            totalEstimatedCost: 24000,
+            priceSource: 'web_found',
+            priceNote: 'Online listing',
+            latitude: 31.512,
+            longitude: 74.351,
+            verified: true,
+            distanceToCenterKm: 2.1,
+            selected: true,
+          ),
+          PlaceOptionModel(
+            optionId: 'h_comfort',
+            name: 'Pearl Continental Lahore',
+            tier: 'comfort',
+            estimatedPrice: 24000,
+            totalEstimatedCost: 48000,
+            priceSource: 'ai_estimated',
+            priceNote: 'Estimated nightly rate',
+            latitude: 31.552,
+            longitude: 74.338,
+            verified: true,
+            distanceToCenterKm: 1.0,
+            selected: false,
+          ),
+        ],
+        diningOptions: [
+          PlaceOptionModel(
+            optionId: 'f_1',
+            name: 'Haveli Restaurant',
+            tier: 'mid_range',
+            estimatedPrice: 1500,
+            totalEstimatedCost: 1500,
+            priceSource: 'web_found',
+            latitude: 31.588,
+            longitude: 74.311,
+            verified: true,
+            distanceToCenterKm: 0.5,
+            selected: true,
+          ),
+          PlaceOptionModel(
+            optionId: 'f_2',
+            name: 'Butt Karahi',
+            tier: 'budget',
+            estimatedPrice: 2000,
+            totalEstimatedCost: 2000,
+            priceSource: 'ai_estimated',
+            latitude: 31.564,
+            longitude: 74.324,
+            verified: true,
+            distanceToCenterKm: 1.4,
+            selected: false,
+          ),
+        ],
+        days: [
+          DayPlanModel(
+            dayNumber: 1,
+            title: 'Walled City Heritage',
+            activities: [
+              ActivityModel(
+                activityId: 'act_lahore_1',
+                timeSlot: 'Morning',
+                title: 'Badshahi Mosque',
+                description: 'Iconic Mughal mosque.',
+                category: 'Historical',
+                estimatedCost: 500,
+                latitude: 31.5881,
+                longitude: 74.3105,
+                verified: true,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    test('formatCompactPrice formats PKR & USD price-tag labels compactly', () {
+      expect(AppFormatters.formatCompactPrice(12000, 'PKR'), 'Rs 12k');
+      expect(AppFormatters.formatCompactPrice(1500, 'PKR'), 'Rs 1.5k');
+      expect(AppFormatters.formatCompactPrice(45, 'USD'), r'$45');
+      expect(AppFormatters.formatCompactPrice(12, 'USD'), r'$12');
+    });
+
+    testWidgets(
+      'MapScreen filters All/Spots/Hotels/Food, renders price-tag pins, and updates TripProvider live',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final storage = InMemoryStorageService();
+        final trip = buildRichLahoreTrip();
+        await storage.saveTrip(trip);
+        final provider = TripProvider(storage: storage);
+        await provider.loadSavedTrips();
+        provider.selectTrip(trip);
+
+        await tester.pumpWidget(
+          ChangeNotifierProvider<TripProvider>.value(
+            value: provider,
+            child: MaterialApp(
+              theme: AppTheme.lightTheme,
+              home: MapScreen(
+                trip: trip,
+                initialDayNumber: 1,
+                showTileLayer: false,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // All mode: 1 spot + 2 hotels + 2 dining = 5 markers
+        expect(
+          tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.length,
+          5,
+        );
+        expect(find.text('Rs 12k'), findsOneWidget);
+        expect(find.text('Rs 24k'), findsOneWidget);
+        expect(find.text('Rs 1.5k'), findsOneWidget);
+        expect(find.text('Rs 2k'), findsOneWidget);
+
+        // Filter to Spots -> only 1 marker
+        await tester.tap(find.text('Spots'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.length,
+          1,
+        );
+
+        // Filter to Hotels -> 2 hotel pins; tap Rs 24k -> Select for My Trip -> live update!
+        await tester.tap(find.text('Hotels'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.length,
+          2,
+        );
+
+        await tester.tap(find.text('Rs 24k'));
+        await tester.pumpAndSettle();
+        expect(find.text('Pearl Continental Lahore'), findsOneWidget);
+        expect(find.text('Verified Place'), findsOneWidget);
+        expect(find.text('AI Est.'), findsOneWidget);
+        expect(find.text('Select for My Trip'), findsOneWidget);
+        expect(find.text('Check Live Rate'), findsOneWidget);
+        expect(find.text('Navigate'), findsOneWidget);
+
+        // Initial effectiveTotalCost: 24000 + 1500 + 8000 = 33500
+        expect(provider.activeTrip!.effectiveTotalCost, 33500.0);
+
+        await tester.tap(find.text('Select for My Trip'));
+        await tester.pumpAndSettle();
+
+        // Updated effectiveTotalCost: 48000 + 1500 + 8000 = 57500
+        expect(provider.activeTrip!.effectiveTotalCost, 57500.0);
+        expect(find.text('Selected ✓'), findsOneWidget);
+        expect(find.textContaining('Rs 57,500'), findsOneWidget);
+
+        // Filter to Food -> 2 food pins; tap Rs 2k -> Include -> live update!
+        await tester.ensureVisible(find.text('Food'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Food'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.length,
+          2,
+        );
+
+        await tester.tap(find.text('Rs 2k'));
+        await tester.pumpAndSettle();
+        expect(find.text('Butt Karahi'), findsOneWidget);
+        expect(find.text('Include'), findsOneWidget);
+
+        await tester.tap(find.text('Include'));
+        await tester.pumpAndSettle();
+
+        // Updated effectiveTotalCost: 48000 + 1500 + 2000 + 8000 = 59500
+        expect(provider.activeTrip!.effectiveTotalCost, 59500.0);
+        expect(find.text('Included ✓'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'MapScreen with initialOptionId pre-opens matching card with zero overflow at 390x844',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final trip = buildRichLahoreTrip();
+        final provider = TripProvider();
+        provider.selectTrip(trip);
+
+        await tester.pumpWidget(
+          ChangeNotifierProvider<TripProvider>.value(
+            value: provider,
+            child: MaterialApp(
+              theme: AppTheme.lightTheme,
+              home: MapScreen(
+                trip: trip,
+                initialOptionId: 'h_budget',
+                initialCategory: 'hotels',
+                showTileLayer: false,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Hotel One Gulberg'), findsOneWidget);
+        expect(find.text('Web Rate'), findsOneWidget);
+        expect(find.text('Selected ✓'), findsOneWidget);
+        expect(find.text('Check Live Rate'), findsOneWidget);
+        expect(find.text('Navigate'), findsOneWidget);
       },
     );
   });

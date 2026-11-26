@@ -13,11 +13,11 @@ class AppStrings {
   static const double maxBudget = 1000000.0;
 
   static const List<String> supportedCurrencies = [
-    'USD',
-    'EUR',
     'PKR',
+    'USD',
     'AED',
     'GBP',
+    'EUR',
   ];
 
   static const Map<String, String> currencySymbols = {

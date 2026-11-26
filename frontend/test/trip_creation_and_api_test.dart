@@ -289,8 +289,10 @@ void main() {
 
         await tester.pumpWidget(AITravelPlannerApp(apiService: api));
 
-        // Enter via Guest Mode -> opens directly on Create Trip tab.
+        // Enter via Guest Mode -> opens Home Explore -> tap center '+' Create Trip FAB.
         await tester.tap(find.text('Explore as Guest'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Create Trip'));
         await tester.pumpAndSettle();
 
         // Scroll to Generate button and tap with empty destination -> validation blocks API.
@@ -333,11 +335,12 @@ void main() {
         await tester.tap(find.text('Generate AI Itinerary'));
         await tester.pumpAndSettle();
 
-        // Verify Day 1 renders cleanly on ItineraryScreen.
+        // Verify Day 1 renders cleanly on ItineraryScreen with View Map pill.
         expect(find.text('Hunza Valley, Pakistan'), findsOneWidget);
         expect(find.text('Visit Baltit Fort'), findsOneWidget);
         expect(find.text('Verified GPS'), findsOneWidget);
         expect(find.text('Instant Cache'), findsOneWidget);
+        expect(find.text('View Map'), findsOneWidget);
 
         // Switch to Day 2 tab and verify Haversine distance warning appears.
         await tester.tap(find.text('Day 2'));
@@ -371,6 +374,8 @@ void main() {
 
       await tester.pumpWidget(AITravelPlannerApp(apiService: flakyApi));
       await tester.tap(find.text('Explore as Guest'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Create Trip'));
       await tester.pumpAndSettle();
 
       await tester.enterText(

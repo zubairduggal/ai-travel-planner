@@ -34,6 +34,6 @@ class ApiConstants {
   static const String weatherEndpoint = '$apiV1Prefix/weather';
 
   static const Duration connectTimeout = Duration(seconds: 15);
-  // Cold trips run Gemini + Nominatim (1 req/sec); cached trips return in ~5ms.
-  static const Duration receiveTimeout = Duration(seconds: 90);
+  // Cold trips run AI generation + Nominatim (1 req/sec); cached trips return in ~10ms.
+  static const Duration receiveTimeout = Duration(seconds: 150);
 }
