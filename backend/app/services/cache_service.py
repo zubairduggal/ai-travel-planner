@@ -100,6 +100,20 @@ class MemoryCacheBackend(CacheBackend):
         self._store.clear()
 
 
+class _NoPickleDisk(diskcache.Disk):
+    """DiskCache serializer that disables pickle to mitigate CVE-2025-69872."""
+
+    def store(self, value: Any, read: bool, key: Any = diskcache.UNKNOWN) -> Any:
+        if not isinstance(value, (str, bytes, int, float)) and value is not None:
+            raise ValueError("Only JSON text or primitive values may be cached")
+        return super().store(value, read, key=key)
+
+    def fetch(self, mode: int, filename: Any, value: Any, read: bool) -> Any:
+        if mode == diskcache.core.MODE_PICKLE:
+            raise ValueError("Pickle deserialization is disabled for security")
+        return super().fetch(mode, filename, value, read)
+
+
 class DiskCacheBackend(CacheBackend):
     """SQLite-backed local DiskCache running on a dedicated single worker thread.
 
@@ -116,7 +130,7 @@ class DiskCacheBackend(CacheBackend):
 
     def _ensure_cache(self) -> diskcache.Cache:
         if self._cache is None:
-            self._cache = diskcache.Cache(self._directory)
+            self._cache = diskcache.Cache(self._directory, disk=_NoPickleDisk)
         return self._cache
 
     async def _run(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
@@ -124,7 +138,11 @@ class DiskCacheBackend(CacheBackend):
         return await loop.run_in_executor(self._executor, lambda: fn(*args, **kwargs))
 
     async def get(self, key: str) -> str | None:
-        value = await self._run(lambda: self._ensure_cache().get(key))
+        try:
+            value = await self._run(lambda: self._ensure_cache().get(key))
+        except ValueError as exc:
+            logger.warning("Rejected unsafe DiskCache entry for %s: %s", key, exc)
+            return None
         return value if isinstance(value, str) else None
 
     async def set(self, key: str, value: str, ttl_seconds: int) -> None:

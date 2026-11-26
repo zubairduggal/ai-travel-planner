@@ -273,3 +273,40 @@ async def test_generate_itinerary_diskcache_hit_under_50ms(client, tmp_path):
         assert models.call_count == 2
     finally:
         await disk_cache.close()
+
+
+async def test_diskcache_blocks_pickle_deserialization_cve_2025_69872(tmp_path):
+    """Mitigate CVE-2025-69872: tampered MODE_PICKLE rows must never unpickle."""
+    import sqlite3
+    import diskcache
+
+    cache_dir = tmp_path / "safe_disk"
+    backend = DiskCacheBackend(str(cache_dir))
+    try:
+        await backend.set("ok_key", '{"ok": true}', ttl_seconds=60)
+        assert await backend.get("ok_key") == '{"ok": true}'
+
+        # Arbitrary Python objects (which would normally pickle) must be rejected.
+        with pytest.raises(ValueError):
+            await backend._run(lambda: backend._ensure_cache().set("obj", {"a": 1}))
+
+        # Simulate tampering directly with SQLite row to MODE_PICKLE.
+        db_path = cache_dir / "cache.db"
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.execute(
+                "UPDATE Cache SET mode = ?, value = ? WHERE key = ?",
+                (
+                    diskcache.core.MODE_PICKLE,
+                    b"not-valid-pickle-would-explode",
+                    "ok_key",
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Reading tampered key must return None without calling pickle.loads.
+        assert await backend.get("ok_key") is None
+    finally:
+        await backend.close()
