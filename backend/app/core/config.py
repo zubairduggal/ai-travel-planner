@@ -52,6 +52,18 @@ class Settings(BaseSettings):
     max_same_day_distance_km: float = Field(default=50.0, gt=0)
     average_travel_speed_kmh: float = Field(default=40.0, gt=0)
 
+    # --- POI Discovery (Overpass API) ---
+    overpass_base_url: str = "https://overpass-api.de/api/interpreter"
+    overpass_timeout_seconds: float = Field(default=10.0, gt=0)
+    poi_cache_ttl_seconds: int = Field(default=86400, ge=0)
+
+    # --- Pluggable Hybrid Pricing Engine ---
+    pricing_provider: Literal["free_web", "disabled"] = "free_web"
+    pricing_search_url: str = "https://html.duckduckgo.com/html/"
+    pricing_timeout_seconds: float = Field(default=4.0, gt=0)
+    pricing_max_concurrency: int = Field(default=4, ge=1, le=10)
+    pricing_cache_ttl_seconds: int = Field(default=86400, ge=0)
+
     # --- Weather Proxy (M3, Open-Meteo) ---
     weather_base_url: str = "https://api.open-meteo.com/v1/forecast"
     weather_timeout_seconds: float = Field(default=10.0, gt=0)
@@ -72,7 +84,13 @@ class Settings(BaseSettings):
     # Optional API key for X-API-Key header auth (strongly recommended in prod).
     api_key: str | None = None
 
-    @field_validator("nominatim_base_url", "weather_base_url", "openrouter_base_url")
+    @field_validator(
+        "nominatim_base_url",
+        "overpass_base_url",
+        "pricing_search_url",
+        "weather_base_url",
+        "openrouter_base_url",
+    )
     @classmethod
     def upstream_urls_must_use_https(cls, value: str) -> str:
         allowed = (

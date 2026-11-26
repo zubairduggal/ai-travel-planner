@@ -1,4 +1,4 @@
-"""Trip generation & slot regeneration endpoints (M2 + M3 + M4)."""
+"""Trip generation & slot regeneration endpoints (M2 + M3 + M4 + Phase 2)."""
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -17,6 +17,11 @@ from app.models.response_schemas import (
 from app.services.ai_engine import AIEngine, get_ai_engine
 from app.services.cache_service import CacheService, get_cache_service
 from app.services.geocoding_service import GeocodingService, get_geocoding_service
+from app.services.poi_discovery_service import (
+    POIDiscoveryService,
+    get_poi_discovery_service,
+)
+from app.services.pricing_service import PricingService, get_pricing_service
 
 router = APIRouter(prefix="/itinerary", tags=["Itinerary"])
 
@@ -40,7 +45,7 @@ _ERRORS = {
     response_model=TripItineraryResponseSchema,
     responses=_ERRORS,
     dependencies=[Depends(verify_api_key)],
-    summary="Generate a day-by-day itinerary",
+    summary="Generate a grounded day-by-day itinerary with stay & dining options",
 )
 @limiter.limit(_itinerary_rate_limit)
 async def generate_itinerary(
@@ -49,16 +54,32 @@ async def generate_itinerary(
     trip: TripRequestSchema,
     engine: AIEngine = Depends(get_ai_engine),
     geocoder: GeocodingService = Depends(get_geocoding_service),
+    poi_discovery: POIDiscoveryService = Depends(get_poi_discovery_service),
+    pricing: PricingService = Depends(get_pricing_service),
     cache: CacheService = Depends(get_cache_service),
 ) -> TripItineraryResponseSchema:
-    """Generate a cached, geocoded day-by-day itinerary with OpenRouter."""
+    """Generate a cached, POI-grounded, geocoded & price-enriched itinerary."""
     cached = await cache.get_itinerary(trip)
     if cached is not None:
         response.headers["X-Cache"] = "HIT"
         return cached
 
-    itinerary = await engine.generate_itinerary(trip)
+    poi_bundle = await poi_discovery.discover_pois(trip.destination)
+    itinerary = await engine.generate_itinerary(trip, poi_bundle=poi_bundle)
     verified = await geocoder.verify_itinerary(itinerary)
+
+    if verified.hotel_options or verified.dining_options:
+        hotels, dining = await pricing.enrich_options(
+            destination=trip.destination,
+            currency=trip.currency,
+            duration_days=trip.duration_days,
+            hotel_options=verified.hotel_options,
+            dining_options=verified.dining_options,
+        )
+        verified = verified.model_copy(
+            update={"hotel_options": hotels, "dining_options": dining}
+        )
+
     await cache.set_itinerary(trip, verified)
     response.headers["X-Cache"] = "MISS"
     return verified

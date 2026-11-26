@@ -35,6 +35,9 @@ logger = logging.getLogger(__name__)
 # Leading action verbs commonly produced by LLMs in activity titles.
 _ACTION_PREFIX_RE = re.compile(
     r"^(?:"
+    r"arrive\s+(?:at|in)|arrival\s+(?:at|in)|"
+    r"depart\s+(?:from|at)|departure\s+(?:from|at)|"
+    r"check[-\s]?in\s+(?:to|at)|check[-\s]?out\s+(?:from|of|at)|"
     r"visit|explore|walk(?:\s+across|\s+around|\s+along)?|tour|"
     r"hike(?:\s+to|\s+at)?|trek(?:\s+to)?|boat\s+ride\s+(?:at|on)|"
     r"sunset\s+(?:at|from)|sunrise\s+(?:at|from)|"
@@ -44,6 +47,9 @@ _ACTION_PREFIX_RE = re.compile(
     r")\s+(?:the\s+)?",
     re.IGNORECASE,
 )
+
+# Parenthetical aliases such as "Bagh-e-Jinnah (Lawrence Gardens)".
+_PARENTHETICAL_RE = re.compile(r"\(([^()]+)\)")
 
 
 @dataclass(frozen=True)
@@ -57,11 +63,32 @@ class GeoLocation:
     provider: str = "nominatim"
 
 
-def extract_place_name(activity_title: str) -> str:
-    """Strip common verb prefixes like 'Visit Baltit Fort' -> 'Baltit Fort'."""
-    cleaned = activity_title.strip()
+def _strip_action_prefix(text: str) -> str:
+    cleaned = text.strip()
     stripped = _ACTION_PREFIX_RE.sub("", cleaned).strip(" -:,.")
     return stripped or cleaned
+
+
+def extract_place_name(activity_title: str) -> str:
+    """Strip action verb prefixes and parenthetical aliases from a title."""
+    cleaned = activity_title.strip()
+    without_parens = _PARENTHETICAL_RE.sub(" ", cleaned)
+    without_parens = " ".join(without_parens.split()).strip(" -:,.")
+    primary = _strip_action_prefix(without_parens)
+    return primary or _strip_action_prefix(cleaned)
+
+
+def extract_place_candidates(activity_title: str) -> list[str]:
+    """Return ordered place candidates: primary name, then parenthetical aliases."""
+    candidates: list[str] = []
+    primary = extract_place_name(activity_title)
+    if primary:
+        candidates.append(primary)
+    for match in _PARENTHETICAL_RE.finditer(activity_title):
+        alias = _strip_action_prefix(match.group(1))
+        if alias and alias.lower() not in {c.lower() for c in candidates}:
+            candidates.append(alias)
+    return candidates
 
 
 def _format_viewbox(bbox: tuple[float, float, float, float]) -> str:
@@ -269,10 +296,18 @@ class GeocodingService:
         viewbox: tuple[float, float, float, float] | None = None,
     ) -> ActivitySchema:
         """Look up GPS coordinates for a single activity and return an updated copy."""
-        place = extract_place_name(activity.title)
-        candidates = [f"{place}, {destination}"]
-        if place.lower() != destination.lower():
-            candidates.append(place)
+        place_names = extract_place_candidates(activity.title)
+        candidates: list[str] = []
+        seen_queries: set[str] = set()
+        for place in place_names:
+            for query in (
+                f"{place}, {destination}",
+                *([] if place.lower() == destination.lower() else [place]),
+            ):
+                key = query.lower()
+                if key not in seen_queries:
+                    seen_queries.add(key)
+                    candidates.append(query)
 
         match: GeoLocation | None = None
         for query in candidates:
@@ -304,6 +339,13 @@ class GeocodingService:
         for day in itinerary.days:
             verified_activities: list[ActivitySchema] = []
             for act in day.activities:
+                if (
+                    act.verified
+                    and act.latitude is not None
+                    and act.longitude is not None
+                ):
+                    verified_activities.append(act)
+                    continue
                 verified_act = await self.verify_activity(
                     act, destination=itinerary.destination, viewbox=dest_viewbox
                 )

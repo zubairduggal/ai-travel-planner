@@ -2,6 +2,7 @@
 
 import re
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -31,8 +32,8 @@ class TripRequestSchema(BaseModel):
                 "destination": "Hunza Valley, Pakistan",
                 "start_date": "2026-06-10",
                 "end_date": "2026-06-14",
-                "budget": 500.0,
-                "currency": "USD",
+                "budget": 50000.0,
+                "currency": "PKR",
                 "interests": ["Nature", "Photography", "Local Food", "Hiking"],
                 "travel_style": "Moderate",
             }
@@ -43,9 +44,11 @@ class TripRequestSchema(BaseModel):
     start_date: date
     end_date: date
     budget: float = Field(..., gt=0, le=MAX_BUDGET, allow_inf_nan=False)
-    currency: str = Field(..., min_length=3, max_length=3)
+    currency: str = Field(default="PKR", min_length=3, max_length=3)
     interests: list[str] = Field(..., min_length=1, max_length=MAX_INTERESTS_COUNT)
     travel_style: str = Field(..., min_length=1, max_length=50)
+    travel_mode: Literal["air", "road", "train", "bus", "bike"] = "air"
+    departure_city: str | None = Field(default=None, max_length=80)
 
     @field_validator("destination", "travel_style")
     @classmethod
@@ -54,6 +57,14 @@ class TripRequestSchema(BaseModel):
         if not cleaned:
             raise ValueError("Field must not be empty or control characters only")
         return cleaned
+
+    @field_validator("departure_city")
+    @classmethod
+    def sanitize_departure_city(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = _sanitize_text(value)
+        return cleaned or None
 
     @field_validator("currency")
     @classmethod
@@ -100,8 +111,8 @@ class RegenerateSlotRequestSchema(BaseModel):
                 "destination": "Hunza Valley, Pakistan",
                 "day_number": 1,
                 "time_slot": "Afternoon",
-                "budget_remaining": 40.0,
-                "currency": "USD",
+                "budget_remaining": 12000.0,
+                "currency": "PKR",
                 "interests": ["Nature", "Photography", "Local Food"],
                 "travel_style": "Moderate",
                 "existing_activity_titles": ["Visit Baltit Fort"],
@@ -115,7 +126,7 @@ class RegenerateSlotRequestSchema(BaseModel):
     day_number: int = Field(..., ge=1, le=MAX_TRIP_DURATION_DAYS)
     time_slot: str = Field(..., min_length=1, max_length=50)
     budget_remaining: float = Field(..., ge=0, le=MAX_BUDGET, allow_inf_nan=False)
-    currency: str = Field(..., min_length=3, max_length=3)
+    currency: str = Field(default="PKR", min_length=3, max_length=3)
     interests: list[str] = Field(..., min_length=1, max_length=MAX_INTERESTS_COUNT)
     travel_style: str = Field(..., min_length=1, max_length=50)
     existing_activity_titles: list[str] = Field(

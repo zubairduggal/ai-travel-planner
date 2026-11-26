@@ -29,6 +29,11 @@ logger = logging.getLogger(__name__)
 def build_itinerary_cache_key(trip: TripRequestSchema) -> str:
     """Build a deterministic, normalized cache key for a trip request."""
     normalized_destination = " ".join(trip.destination.strip().lower().split())
+    normalized_departure = (
+        " ".join(trip.departure_city.strip().lower().split())
+        if trip.departure_city
+        else None
+    )
     canonical = {
         "destination": normalized_destination,
         "start_date": trip.start_date.isoformat(),
@@ -37,6 +42,8 @@ def build_itinerary_cache_key(trip: TripRequestSchema) -> str:
         "currency": trip.currency.upper(),
         "interests": sorted(item.strip().lower() for item in trip.interests),
         "travel_style": trip.travel_style.strip().lower(),
+        "travel_mode": trip.travel_mode.strip().lower(),
+        "departure_city": normalized_departure,
     }
     raw = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()

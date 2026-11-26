@@ -21,6 +21,7 @@ from app.models.response_schemas import (
 from app.services.ai_engine import AIEngine, get_ai_engine
 from app.services.geocoding_service import (
     GeocodingService,
+    extract_place_candidates,
     extract_place_name,
     get_geocoding_service,
 )
@@ -154,6 +155,21 @@ def test_evaluate_day_feasibility_handles_few_verified_points():
     ("title", "expected"),
     [
         ("Visit Baltit Fort", "Baltit Fort"),
+        ("Explore Lahore Fort", "Lahore Fort"),
+        (
+            "Arrive at Allama Iqbal International Airport",
+            "Allama Iqbal International Airport",
+        ),
+        (
+            "Depart from Islamabad International Airport",
+            "Islamabad International Airport",
+        ),
+        ("Check in to Serena Hotel", "Serena Hotel"),
+        ("Check-in at Pearl Continental Hotel", "Pearl Continental Hotel"),
+        ("Dinner at Gawalmandi Food Street", "Gawalmandi Food Street"),
+        ("Lunch at Monal Restaurant", "Monal Restaurant"),
+        ("Breakfast at Cafe Zouk", "Cafe Zouk"),
+        ("Visit Bagh-e-Jinnah (Lawrence Gardens)", "Bagh-e-Jinnah"),
         ("Boat ride at Attabad Lake", "Attabad Lake"),
         ("Sunset at Eagle's Nest Viewpoint", "Eagle's Nest Viewpoint"),
         ("Walk across Hussaini Suspension Bridge", "Hussaini Suspension Bridge"),
@@ -162,6 +178,54 @@ def test_evaluate_day_feasibility_handles_few_verified_points():
 )
 def test_extract_place_name(title, expected):
     assert extract_place_name(title) == expected
+
+
+def test_extract_place_candidates_returns_parenthetical_alias():
+    assert extract_place_candidates("Visit Bagh-e-Jinnah (Lawrence Gardens)") == [
+        "Bagh-e-Jinnah",
+        "Lawrence Gardens",
+    ]
+
+
+async def test_verify_activity_retries_with_parenthetical_alias():
+    seen_queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        q = request.url.params.get("q", "")
+        seen_queries.append(q)
+        if "lawrence gardens" in q.lower():
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "lat": "31.554600",
+                        "lon": "74.331200",
+                        "display_name": "Lawrence Gardens, Lahore, Pakistan",
+                    }
+                ],
+            )
+        return httpx.Response(200, json=[])
+
+    activity = ActivitySchema(
+        activity_id="act_01",
+        time_slot="Morning",
+        title="Visit Bagh-e-Jinnah (Lawrence Gardens)",
+        description="Historic botanical garden.",
+        category="Nature",
+        estimated_cost=0.0,
+    )
+    settings = Settings(nominatim_min_interval_seconds=0.0)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        service = GeocodingService(settings=settings, http_client=http)
+        verified = await service.verify_activity(
+            activity, destination="Lahore, Pakistan"
+        )
+
+    assert verified.verified is True
+    assert verified.latitude == 31.5546
+    assert verified.longitude == 74.3312
+    assert any("bagh-e-jinnah" in q.lower() for q in seen_queries)
+    assert any("lawrence gardens" in q.lower() for q in seen_queries)
 
 
 # --- Geocoding service (Nominatim + cache + throttle + Google fallback) ----

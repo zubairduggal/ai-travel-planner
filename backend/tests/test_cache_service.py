@@ -106,6 +106,29 @@ def test_cache_key_normalizes_whitespace_case_and_interest_order():
     assert build_itinerary_cache_key(t1) != build_itinerary_cache_key(t3)
 
 
+def test_cache_key_separates_travel_mode_and_departure_city():
+    air = TripRequestSchema(**TRIP_PAYLOAD, travel_mode="air")
+    road = TripRequestSchema(**TRIP_PAYLOAD, travel_mode="road")
+    train = TripRequestSchema(**TRIP_PAYLOAD, travel_mode="train")
+    road_lhr = TripRequestSchema(
+        **TRIP_PAYLOAD, travel_mode="road", departure_city="Lahore"
+    )
+    road_lhr_variant = TripRequestSchema(
+        **TRIP_PAYLOAD, travel_mode="road", departure_city="  lahore  "
+    )
+    road_isb = TripRequestSchema(
+        **TRIP_PAYLOAD, travel_mode="road", departure_city="Islamabad"
+    )
+
+    assert build_itinerary_cache_key(air) != build_itinerary_cache_key(road)
+    assert build_itinerary_cache_key(road) != build_itinerary_cache_key(train)
+    assert build_itinerary_cache_key(road) != build_itinerary_cache_key(road_lhr)
+    assert build_itinerary_cache_key(road_lhr) == build_itinerary_cache_key(
+        road_lhr_variant
+    )
+    assert build_itinerary_cache_key(road_lhr) != build_itinerary_cache_key(road_isb)
+
+
 async def test_diskcache_backend_roundtrip_and_corrupted_entry(tmp_path):
     backend = DiskCacheBackend(str(tmp_path / "disk_test"))
     try:
@@ -241,5 +264,12 @@ async def test_generate_itinerary_diskcache_hit_under_50ms(client, tmp_path):
         assert second.json()["trip_id"] == first.json()["trip_id"]
         assert models.call_count == 1
         assert elapsed_ms < 50.0, f"Expected cache hit < 50ms, got {elapsed_ms:.2f}ms"
+
+        # 3rd call with travel_mode='road' must NOT return the cached 'air' itinerary
+        road_payload = {**TRIP_PAYLOAD, "travel_mode": "road"}
+        third = await client.post("/api/v1/itinerary/generate", json=road_payload)
+        assert third.status_code == 200
+        assert third.headers["X-Cache"] == "MISS"
+        assert models.call_count == 2
     finally:
         await disk_cache.close()

@@ -117,8 +117,15 @@ def test_trip_request_rejects_invalid_input(override):
         TripRequestSchema(**{**VALID_TRIP, **override})
 
 
+def test_trip_request_defaults_currency_to_pkr():
+    payload = {k: v for k, v in VALID_TRIP.items() if k != "currency"}
+    trip = TripRequestSchema(**payload)
+    assert trip.currency == "PKR"
+
+
 def test_trip_request_requires_all_fields():
-    for field in VALID_TRIP:
+    required_fields = [f for f in VALID_TRIP if f != "currency"]
+    for field in required_fields:
         payload = {k: v for k, v in VALID_TRIP.items() if k != field}
         with pytest.raises(ValidationError):
             TripRequestSchema(**payload)
