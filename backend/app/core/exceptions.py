@@ -9,7 +9,9 @@ handle it in one place:
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +123,42 @@ async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONRespons
     )
 
 
+async def validation_exception_handler(
+    _: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Return a clean 422 envelope without failing on NaN/Infinity inputs."""
+    errors = exc.errors()
+    first_msg = (
+        str(errors[0].get("msg"))
+        if errors and isinstance(errors[0], dict) and errors[0].get("msg")
+        else "Invalid request parameters."
+    )
+    return JSONResponse(
+        status_code=422,
+        content={"error": {"code": "VALIDATION_ERROR", "message": first_msg}},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def http_exception_handler(
+    _: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    """Standardize 404/405/HTTP exceptions into the uniform error envelope."""
+    code_map = {
+        404: "NOT_FOUND",
+        405: "METHOD_NOT_ALLOWED",
+    }
+    code = code_map.get(exc.status_code, f"HTTP_{exc.status_code}")
+    message = exc.detail if isinstance(exc.detail, str) else "Request failed."
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": code, "message": message}},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, app_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
